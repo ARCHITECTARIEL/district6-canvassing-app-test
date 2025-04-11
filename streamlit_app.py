@@ -44,9 +44,14 @@ with st.sidebar.expander("Debug Info", expanded=False):
 # Load real address data with multiple path options
 @st.cache_data
 def load_address_data():
-    # List of possible file paths to try
+    # List of possible file paths to try - prioritizing the renamed addresses.json file
     possible_paths = [
-        # GitHub repository structure options
+        # GitHub repository structure options with renamed file
+        "./addresses.json",
+        "./data/addresses.json",
+        "./upload/addresses.json",
+        "../addresses.json",
+        # Original filename options as fallback
         "./Advanced Search 4-11-2025 (1).json",
         "./data/Advanced Search 4-11-2025 (1).json",
         "./upload/Advanced Search 4-11-2025 (1).json",
@@ -339,6 +344,20 @@ initialize_sample_data()
 # Sidebar for navigation
 st.sidebar.title("District 6 Canvassing")
 st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Map_icon.svg/1200px-Map_icon.svg.png", width=100)
+
+# Add a file uploader for the JSON data - moved to top of sidebar for visibility
+st.sidebar.markdown("---")
+st.sidebar.subheader("Upload Address Data")
+st.sidebar.info("If automatic data loading fails, please upload your addresses.json file here:")
+uploaded_file = st.sidebar.file_uploader("Upload JSON file", type="json")
+if uploaded_file is not None:
+    try:
+        # Save the uploaded file
+        st.sidebar.success("File uploaded successfully!")
+        st.session_state.address_data = json.load(uploaded_file)
+        st.sidebar.info(f"Loaded {len(st.session_state.address_data)} addresses")
+    except Exception as e:
+        st.sidebar.error(f"Error loading file: {str(e)}")
 
 # Navigation
 tab = st.sidebar.radio("Navigation", ["Home", "Demographics", "Election History", "Stats", "Settings"])
@@ -1137,16 +1156,3 @@ elif st.session_state.current_tab == "Settings":
 # Footer
 st.markdown("---")
 st.markdown("© 2025 District 6 Campaign | Powered by Streamlit")
-
-# Add a file uploader for the JSON data
-st.sidebar.markdown("---")
-st.sidebar.subheader("Upload Address Data")
-uploaded_file = st.sidebar.file_uploader("Upload JSON file", type="json")
-if uploaded_file is not None:
-    try:
-        # Save the uploaded file
-        st.sidebar.success("File uploaded successfully!")
-        st.session_state.address_data = json.load(uploaded_file)
-        st.sidebar.info(f"Loaded {len(st.session_state.address_data)} addresses")
-    except Exception as e:
-        st.sidebar.error(f"Error loading file: {str(e)}")
