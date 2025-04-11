@@ -29,16 +29,64 @@ if 'data_initialized' not in st.session_state:
 if 'address_data' not in st.session_state:
     st.session_state.address_data = None
 
-# Load real address data
+# Debug section to show file paths
+st.sidebar.expander("Debug Info", expanded=False).write(f"Current directory: {os.getcwd()}\nFiles in directory: {os.listdir('.')}")
+
+# Load real address data with multiple path options
 @st.cache_data
 def load_address_data():
-    try:
-        with open('/home/ubuntu/upload/Advanced Search 4-11-2025 (1).json', 'r') as f:
-            data = json.load(f)
-        return data
-    except Exception as e:
-        st.error(f"Error loading address data: {str(e)}")
-        return []
+    # List of possible file paths to try
+    possible_paths = [
+        # GitHub repository structure options
+        "./Advanced Search 4-11-2025 (1).json",
+        "./data/Advanced Search 4-11-2025 (1).json",
+        "./upload/Advanced Search 4-11-2025 (1).json",
+        "../Advanced Search 4-11-2025 (1).json",
+        # Original path (for local testing)
+        "/home/ubuntu/upload/Advanced Search 4-11-2025 (1).json"
+    ]
+    
+    # Try each path
+    for path in possible_paths:
+        try:
+            st.sidebar.info(f"Trying to load from: {path}")
+            with open(path, 'r') as f:
+                data = json.load(f)
+            st.sidebar.success(f"Successfully loaded from: {path}")
+            return data
+        except Exception as e:
+            st.sidebar.warning(f"Failed to load from {path}: {str(e)}")
+    
+    # If we get here, all paths failed
+    st.error("Could not load address data from any location. Please upload the JSON file to your repository.")
+    
+    # Return sample data as fallback
+    return generate_sample_addresses()
+
+# Generate sample addresses as fallback
+def generate_sample_addresses():
+    st.warning("Using generated sample addresses since real data couldn't be loaded.")
+    sample_data = []
+    
+    for i in range(50):
+        precinct_id = str(106 + (i % 13))
+        zip_code = "33701" if i % 2 == 0 else "33705"
+        
+        sample_data.append({
+            "PARCEL_NUMBER": f"SAMPLE-{i}",
+            "OWNER1": f"SAMPLE RESIDENT {i}",
+            "OWNER2": "FAMILY MEMBER" if i % 3 == 0 else None,
+            "SITE_ADDRESS": f"{100 + i} MAIN ST",
+            "SITE_CITYZIP": f"ST PETERSBURG, FL {zip_code}",
+            "PROPERTY_USE": f"Sample Property Type {i % 5}",
+            "HX_YN": "Yes" if i % 2 == 0 else "No",
+            "STR_NUM": 100 + i,
+            "STR_NAME": "MAIN",
+            "STR_UNIT": f"#{i}" if i % 4 == 0 else None,
+            "STR_ZIP": zip_code
+        })
+    
+    return sample_data
 
 # Real District 6 precinct data
 def get_district6_precincts():
@@ -275,6 +323,9 @@ if st.session_state.current_tab == "Home":
         # Display addresses
         if 'addresses' in st.session_state and st.session_state.addresses:
             st.subheader("Addresses to Visit")
+            
+            # Display number of addresses found
+            st.info(f"Found {len(st.session_state.addresses)} addresses in this precinct")
             
             # Map view of addresses
             if st.session_state.addresses:
@@ -932,3 +983,16 @@ elif st.session_state.current_tab == "Settings":
 # Footer
 st.markdown("---")
 st.markdown("© 2025 District 6 Campaign | Powered by Streamlit")
+
+# Add a file uploader for the JSON data
+st.sidebar.markdown("---")
+st.sidebar.subheader("Upload Address Data")
+uploaded_file = st.sidebar.file_uploader("Upload JSON file", type="json")
+if uploaded_file is not None:
+    try:
+        # Save the uploaded file
+        st.sidebar.success("File uploaded successfully!")
+        st.session_state.address_data = json.load(uploaded_file)
+        st.sidebar.info(f"Loaded {len(st.session_state.address_data)} addresses")
+    except Exception as e:
+        st.sidebar.error(f"Error loading file: {str(e)}")
