@@ -89,7 +89,7 @@ def load_address_data():
             ariel_exists = False
             for address in data:
                 if (address.get('STR_NUM') == 315 and 
-                    'TAYLOR' in address.get('STR_NAME', '') and 
+                    'TAYLOR' in str(address.get('STR_NAME', '')) and 
                     address.get('STR_ZIP') == '33705'):
                     ariel_exists = True
                     break
@@ -216,11 +216,17 @@ def get_real_addresses(precinct_id, search_query=""):
         filtered_addresses = []
         for address in addresses:
             # Check if search query matches any part of the address
-            if (search_query in address['owner1'].lower() or
-                search_query in address['owner2'].lower() or
-                search_query in address['address'].lower() or
-                search_query in address['city_zip'].lower() or
-                search_query in address['property_type'].lower()):
+            owner1 = str(address.get('owner1', '')).lower()
+            owner2 = str(address.get('owner2', '')).lower()
+            addr = str(address.get('address', '')).lower()
+            city_zip = str(address.get('city_zip', '')).lower()
+            prop_type = str(address.get('property_type', '')).lower()
+            
+            if (search_query in owner1 or
+                search_query in owner2 or
+                search_query in addr or
+                search_query in city_zip or
+                search_query in prop_type):
                 filtered_addresses.append(address)
         return filtered_addresses
     
@@ -422,7 +428,8 @@ if st.session_state.current_tab == "Home":
             # Highlight if Ariel's address is found
             ariel_found = False
             for address in st.session_state.addresses:
-                if "FERNANDEZ, ARIEL" in address.get('owner1', ''):
+                owner1 = str(address.get('owner1', ''))
+                if "FERNANDEZ, ARIEL" in owner1:
                     ariel_found = True
                     st.success("✅ Ariel Fernandez's address found in this precinct!")
                     break
@@ -495,8 +502,9 @@ if st.session_state.current_tab == "Home":
                 address_id = address.get('id', i)
                 visited = address_id in st.session_state.visited_addresses
                 
-                # Highlight Ariel's address
-                is_ariel = "FERNANDEZ, ARIEL" in address.get('owner1', '')
+                # Safely check if this is Ariel's address
+                owner1 = str(address.get('owner1', ''))
+                is_ariel = "FERNANDEZ, ARIEL" in owner1
                 
                 # Create a card-like container for each address
                 with st.container():
