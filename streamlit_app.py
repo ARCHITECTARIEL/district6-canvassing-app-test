@@ -48,6 +48,10 @@ if 'contact_address' not in st.session_state:
     st.session_state.contact_address = None
 if 'json_load_error' not in st.session_state:
     st.session_state.json_load_error = None
+if 'geographic_section' not in st.session_state:
+    st.session_state.geographic_section = "All"
+if 'user_location' not in st.session_state:
+    st.session_state.user_location = None
 
 # Function to navigate between pages
 def navigate_to(page, address=None):
@@ -63,19 +67,19 @@ st.sidebar.title("District 6 Canvassing")
 # Real District 6 precinct data - removed strategy tags
 def get_district6_precincts():
     return [
-        {"id": "106", "name": "Precinct 106", "total_addresses": 760, "turnout": "88.55%", "zip_codes": ["33701", "33705"]},
-        {"id": "108", "name": "Precinct 108", "total_addresses": 2773, "turnout": "81.79%", "zip_codes": ["33701", "33705"]},
-        {"id": "109", "name": "Precinct 109", "total_addresses": 2151, "turnout": "77.59%", "zip_codes": ["33701", "33705"]},
-        {"id": "116", "name": "Precinct 116", "total_addresses": 1511, "turnout": "67.97%", "zip_codes": ["33701", "33705"]},
-        {"id": "117", "name": "Precinct 117", "total_addresses": 1105, "turnout": "62.53%", "zip_codes": ["33701", "33705"]},
-        {"id": "118", "name": "Precinct 118", "total_addresses": 1175, "turnout": "85.36%", "zip_codes": ["33701", "33705"]},
-        {"id": "119", "name": "Precinct 119", "total_addresses": 2684, "turnout": "65.31%", "zip_codes": ["33701", "33705"]},
-        {"id": "121", "name": "Precinct 121", "total_addresses": 922, "turnout": "77.55%", "zip_codes": ["33701", "33705"]},
-        {"id": "122", "name": "Precinct 122", "total_addresses": 258, "turnout": "87.60%", "zip_codes": ["33701", "33705"]},
-        {"id": "123", "name": "Precinct 123", "total_addresses": 4627, "turnout": "85.35%", "zip_codes": ["33701", "33705"]},
-        {"id": "125", "name": "Precinct 125", "total_addresses": 1301, "turnout": "79.94%", "zip_codes": ["33701", "33705"]},
-        {"id": "126", "name": "Precinct 126", "total_addresses": 1958, "turnout": "77.07%", "zip_codes": ["33701", "33705"]},
-        {"id": "130", "name": "Precinct 130", "total_addresses": 3764, "turnout": "86.16%", "zip_codes": ["33701", "33705"]}
+        {"id": "106", "name": "Precinct 106", "total_addresses": 760, "turnout": "88.55%", "zip_codes": ["33701", "33705"], "section": "North"},
+        {"id": "108", "name": "Precinct 108", "total_addresses": 2773, "turnout": "81.79%", "zip_codes": ["33701", "33705"], "section": "North"},
+        {"id": "109", "name": "Precinct 109", "total_addresses": 2151, "turnout": "77.59%", "zip_codes": ["33701", "33705"], "section": "East"},
+        {"id": "116", "name": "Precinct 116", "total_addresses": 1511, "turnout": "67.97%", "zip_codes": ["33701", "33705"], "section": "East"},
+        {"id": "117", "name": "Precinct 117", "total_addresses": 1105, "turnout": "62.53%", "zip_codes": ["33701", "33705"], "section": "South"},
+        {"id": "118", "name": "Precinct 118", "total_addresses": 1175, "turnout": "85.36%", "zip_codes": ["33701", "33705"], "section": "South"},
+        {"id": "119", "name": "Precinct 119", "total_addresses": 2684, "turnout": "65.31%", "zip_codes": ["33701", "33705"], "section": "West"},
+        {"id": "121", "name": "Precinct 121", "total_addresses": 922, "turnout": "77.55%", "zip_codes": ["33701", "33705"], "section": "West"},
+        {"id": "122", "name": "Precinct 122", "total_addresses": 258, "turnout": "87.60%", "zip_codes": ["33701", "33705"], "section": "North"},
+        {"id": "123", "name": "Precinct 123", "total_addresses": 4627, "turnout": "85.35%", "zip_codes": ["33701", "33705"], "section": "East"},
+        {"id": "125", "name": "Precinct 125", "total_addresses": 1301, "turnout": "79.94%", "zip_codes": ["33701", "33705"], "section": "South"},
+        {"id": "126", "name": "Precinct 126", "total_addresses": 1958, "turnout": "77.07%", "zip_codes": ["33701", "33705"], "section": "West"},
+        {"id": "130", "name": "Precinct 130", "total_addresses": 3764, "turnout": "86.16%", "zip_codes": ["33701", "33705"], "section": "North"}
     ]
 
 # Generate sample addresses as fallback
@@ -103,13 +107,15 @@ def generate_sample_addresses():
         "STR_ZIP": "33705",
         "PRECINCT": "106",  # Explicitly assign precinct
         "LAT": 27.773056,  # Add coordinates for map
-        "LON": -82.639999
+        "LON": -82.639999,
+        "SECTION": "North"  # Assign geographic section
     })
     
     # Generate additional sample addresses for each precinct
     precincts = get_district6_precincts()
     for precinct in precincts:
         precinct_id = precinct["id"]
+        section = precinct["section"]
         
         # Generate a few apartment buildings/condos with multiple units
         for b in range(3):
@@ -145,7 +151,8 @@ def generate_sample_addresses():
                     "PRECINCT": precinct_id,  # Explicitly assign precinct
                     "BUILDING_NAME": building_name,
                     "LAT": unit_lat,  # Add coordinates for map
-                    "LON": unit_lon
+                    "LON": unit_lon,
+                    "SECTION": section  # Assign geographic section
                 })
         
         # Generate some single-family homes
@@ -172,7 +179,8 @@ def generate_sample_addresses():
                 "STR_ZIP": zip_code,
                 "PRECINCT": precinct_id,  # Explicitly assign precinct
                 "LAT": home_lat,  # Add coordinates for map
-                "LON": home_lon
+                "LON": home_lon,
+                "SECTION": section  # Assign geographic section
             })
         
         # Generate some businesses
@@ -199,7 +207,8 @@ def generate_sample_addresses():
                 "STR_ZIP": zip_code,
                 "PRECINCT": precinct_id,  # Explicitly assign precinct
                 "LAT": biz_lat,  # Add coordinates for map
-                "LON": biz_lon
+                "LON": biz_lon,
+                "SECTION": section  # Assign geographic section
             })
     
     return sample_data
@@ -443,6 +452,18 @@ def process_address_data(address_data):
             
             address['LAT'] = base_lat + (street_num % 100) * 0.0001 + (int(precinct_id) % 10) * 0.001
             address['LON'] = base_lon + (street_num % 50) * 0.0002 - (int(precinct_id) % 5) * 0.001
+        
+        # Add geographic section based on precinct
+        if 'SECTION' not in address:
+            precinct_id = str(address.get('PRECINCT', ''))
+            precincts = get_district6_precincts()
+            precinct_info = next((p for p in precincts if p['id'] == precinct_id), None)
+            
+            if precinct_info:
+                address['SECTION'] = precinct_info['section']
+            else:
+                # Default to North if precinct not found
+                address['SECTION'] = "North"
     
     # Make sure Ariel's address is included
     ariel_exists = False
@@ -456,6 +477,8 @@ def process_address_data(address_data):
             if 'LAT' not in address or 'LON' not in address:
                 address['LAT'] = 27.773056  # St. Petersburg latitude
                 address['LON'] = -82.639999  # St. Petersburg longitude
+            # Make sure Ariel's address has a section
+            address['SECTION'] = "North"
             break
     
     # Add Ariel's address if not found
@@ -479,7 +502,8 @@ def process_address_data(address_data):
             "STR_ZIP": "33705",
             "PRECINCT": "106",  # Explicitly assign precinct
             "LAT": 27.773056,  # Add coordinates for map
-            "LON": -82.639999
+            "LON": -82.639999,
+            "SECTION": "North"  # Assign geographic section
         }
         address_data.append(ariel_address)
         st.sidebar.success("Added Ariel Fernandez's address to the dataset")
@@ -580,7 +604,7 @@ def generate_search_suggestions(addresses, partial_query):
     return suggestion_list[:10]
 
 # Filter addresses based on search query and filters
-def filter_addresses(addresses, search_query="", show_visited=True, show_not_visited=True, property_type="All"):
+def filter_addresses(addresses, search_query="", show_visited=True, show_not_visited=True, property_type="All", geographic_section="All"):
     filtered = []
     
     for address in addresses:
@@ -602,6 +626,12 @@ def filter_addresses(addresses, search_query="", show_visited=True, show_not_vis
             if property_type == "Residential" and address_property_type != "Residential":
                 continue
             if property_type == "Business" and address_property_type != "Business":
+                continue
+        
+        # Filter by geographic section
+        if geographic_section != "All":
+            address_section = address.get('SECTION', '')
+            if geographic_section != address_section:
                 continue
         
         # Filter by search query
@@ -644,6 +674,30 @@ def get_support_level_color(level):
     }
     return colors.get(level, "lightgray")
 
+# Get user's current location
+def get_user_location():
+    st.markdown("""
+    <script>
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            const data = {
+                lat: lat,
+                lon: lon
+            };
+            window.parent.postMessage({
+                type: "streamlit:setComponentValue",
+                value: JSON.stringify(data)
+            }, "*");
+        },
+        (error) => {
+            console.error("Error getting location:", error);
+        }
+    );
+    </script>
+    """, unsafe_allow_html=True)
+
 # Main app layout
 if st.session_state.current_page == "home":
     # Organize addresses by precinct if not already done
@@ -657,27 +711,69 @@ if st.session_state.current_page == "home":
         st.error(f"Error loading address data: {st.session_state.json_load_error}")
         st.info("Using fallback data or sample addresses. You can upload a properly formatted JSON file using the uploader in the sidebar.")
     
-    # Precinct selection
-    precincts = get_district6_precincts()
-    precinct_options = [f"{p['name']} ({len(st.session_state.precinct_addresses.get(p['id'], []))} addresses)" for p in precincts]
-    
-    col1, col2 = st.columns([2, 1])
+    # Geographic section selection
+    col1, col2, col3 = st.columns([2, 2, 1])
     
     with col1:
-        selected_index = 0
-        if st.session_state.selected_precinct:
-            for i, p in enumerate(precincts):
-                if p['id'] == st.session_state.selected_precinct:
-                    selected_index = i
-                    break
-        
-        selected_precinct_display = st.selectbox("Select Precinct:", precinct_options, index=selected_index)
-        selected_precinct_index = precinct_options.index(selected_precinct_display)
-        st.session_state.selected_precinct = precincts[selected_precinct_index]['id']
+        # Geographic section selection
+        section_options = ["All", "North", "South", "East", "West"]
+        st.session_state.geographic_section = st.selectbox(
+            "Select Geographic Section:", 
+            section_options, 
+            index=section_options.index(st.session_state.geographic_section)
+        )
     
     with col2:
+        # Precinct selection based on geographic section
+        precincts = get_district6_precincts()
+        
+        # Filter precincts by selected geographic section
+        if st.session_state.geographic_section != "All":
+            filtered_precincts = [p for p in precincts if p['section'] == st.session_state.geographic_section]
+        else:
+            filtered_precincts = precincts
+        
+        precinct_options = [f"{p['name']} ({len(st.session_state.precinct_addresses.get(p['id'], []))} addresses)" for p in filtered_precincts]
+        
+        if precinct_options:
+            selected_index = 0
+            if st.session_state.selected_precinct:
+                for i, p in enumerate(filtered_precincts):
+                    if p['id'] == st.session_state.selected_precinct:
+                        selected_index = i
+                        break
+            
+            selected_precinct_display = st.selectbox("Select Precinct:", precinct_options, index=min(selected_index, len(precinct_options)-1))
+            selected_precinct_index = precinct_options.index(selected_precinct_display)
+            st.session_state.selected_precinct = filtered_precincts[selected_precinct_index]['id']
+        else:
+            st.warning(f"No precincts found in the {st.session_state.geographic_section} section.")
+            st.session_state.selected_precinct = None
+    
+    with col3:
         # Volunteer name input
         st.session_state.volunteer_name = st.text_input("Volunteer Name:", value=st.session_state.volunteer_name)
+    
+    # Location finder
+    st.subheader("Location Finder")
+    col1, col2 = st.columns([1, 3])
+    
+    with col1:
+        if st.button("📍 Find My Location"):
+            # In a real app, this would use the browser's geolocation API
+            # For demonstration, we'll use a placeholder
+            st.session_state.user_location = {
+                "lat": 27.773056,  # St. Petersburg latitude
+                "lon": -82.639999  # St. Petersburg longitude
+            }
+            st.success("Location found! Map updated to show your current position.")
+    
+    with col2:
+        if st.session_state.user_location:
+            st.write(f"Your current location: {st.session_state.user_location['lat']:.6f}, {st.session_state.user_location['lon']:.6f}")
+            st.write("The map below will show nearby addresses.")
+        else:
+            st.write("Click 'Find My Location' to see your position on the map and find nearby addresses.")
     
     # Display precinct information
     if st.session_state.selected_precinct:
@@ -685,7 +781,7 @@ if st.session_state.current_page == "home":
         precinct_info = next((p for p in precincts if p['id'] == precinct_id), None)
         
         if precinct_info:
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             
             with col1:
                 st.metric("Registered Voters", precinct_info['total_addresses'])
@@ -698,6 +794,9 @@ if st.session_state.current_page == "home":
                 precinct_addresses = st.session_state.precinct_addresses.get(precinct_id, [])
                 visited_count = sum(1 for addr in precinct_addresses if addr.get('PARCEL_NUMBER', '') in st.session_state.visited_addresses)
                 st.metric("Addresses Visited", f"{visited_count}/{len(precinct_addresses)}")
+            
+            with col4:
+                st.metric("Geographic Section", precinct_info['section'])
         
         # Get addresses for the selected precinct
         precinct_addresses = st.session_state.precinct_addresses.get(precinct_id, [])
@@ -744,11 +843,49 @@ if st.session_state.current_page == "home":
             search_query=search_query,
             show_visited=show_visited,
             show_not_visited=show_not_visited,
-            property_type=property_type
+            property_type=property_type,
+            geographic_section=st.session_state.geographic_section
         )
+        
+        # Display map of addresses
+        if filtered_addresses:
+            st.subheader("Map View")
+            
+            # Extract coordinates for map
+            map_data = []
+            for address in filtered_addresses:
+                # Use the LAT and LON fields we added during processing
+                lat = address.get('LAT')
+                lon = address.get('LON')
+                
+                if lat and lon:
+                    map_data.append({
+                        "lat": lat, 
+                        "lon": lon,
+                        "name": address.get('OWNER1', ''),
+                        "address": address.get('SITE_ADDRESS', '')
+                    })
+            
+            # Add user's location to the map if available
+            if st.session_state.user_location:
+                map_data.append({
+                    "lat": st.session_state.user_location["lat"],
+                    "lon": st.session_state.user_location["lon"],
+                    "name": "YOUR LOCATION",
+                    "address": "You are here"
+                })
+            
+            # Convert to DataFrame for Streamlit's map
+            if map_data:
+                map_df = pd.DataFrame(map_data)
+                st.map(map_df)
+            else:
+                st.warning("No map data available for these addresses.")
         
         # Display addresses
         if filtered_addresses:
+            st.subheader("Address List")
+            
             if st.session_state.cluster_view:
                 # Group addresses by building/neighborhood
                 buildings = defaultdict(list)
@@ -806,14 +943,17 @@ if st.session_state.current_page == "home":
                                 site_cityzip = address.get('SITE_CITYZIP', '')
                                 owner1 = address.get('OWNER1', '')
                                 owner2 = address.get('OWNER2', '')
+                                section = address.get('SECTION', '')
                                 
                                 # Highlight Ariel's address
                                 if is_ariel:
                                     st.markdown(f"⭐ **{owner1}** ⭐")
                                     st.markdown(f"**{site_address}**  \n{site_cityzip}")
+                                    st.markdown(f"Section: {section}")
                                 else:
                                     st.markdown(f"**{owner1}**{' & ' + owner2 if owner2 else ''}")
                                     st.markdown(f"{site_address}  \n{site_cityzip}")
+                                    st.markdown(f"Section: {section}")
                                 
                                 # Show property type
                                 property_use = address.get('PROPERTY_USE', '')
@@ -879,14 +1019,17 @@ if st.session_state.current_page == "home":
                         site_cityzip = address.get('SITE_CITYZIP', '')
                         owner1 = address.get('OWNER1', '')
                         owner2 = address.get('OWNER2', '')
+                        section = address.get('SECTION', '')
                         
                         # Highlight Ariel's address
                         if is_ariel:
                             st.markdown(f"⭐ **{owner1}** ⭐")
                             st.markdown(f"**{site_address}**  \n{site_cityzip}")
+                            st.markdown(f"Section: {section}")
                         else:
                             st.markdown(f"**{owner1}**{' & ' + owner2 if owner2 else ''}")
                             st.markdown(f"{site_address}  \n{site_cityzip}")
+                            st.markdown(f"Section: {section}")
                         
                         # Show property type
                         property_use = address.get('PROPERTY_USE', '')
@@ -928,32 +1071,6 @@ if st.session_state.current_page == "home":
                     st.markdown("---")
         else:
             st.warning("No addresses found matching your criteria.")
-        
-        # Display map of addresses
-        if filtered_addresses:
-            st.subheader("Map View")
-            
-            # Extract coordinates for map
-            map_data = []
-            for address in filtered_addresses:
-                # Use the LAT and LON fields we added during processing
-                lat = address.get('LAT')
-                lon = address.get('LON')
-                
-                if lat and lon:
-                    map_data.append({
-                        "lat": lat, 
-                        "lon": lon,
-                        "name": address.get('OWNER1', ''),
-                        "address": address.get('SITE_ADDRESS', '')
-                    })
-            
-            # Convert to DataFrame for Streamlit's map
-            if map_data:
-                map_df = pd.DataFrame(map_data)
-                st.map(map_df)
-            else:
-                st.warning("No map data available for these addresses.")
 
 elif st.session_state.current_page == "contact":
     # Contact page for recording interactions
@@ -972,9 +1089,11 @@ elif st.session_state.current_page == "contact":
             site_cityzip = address.get('SITE_CITYZIP', '')
             owner1 = address.get('OWNER1', '')
             owner2 = address.get('OWNER2', '')
+            section = address.get('SECTION', '')
             
             st.markdown(f"## {owner1}{' & ' + owner2 if owner2 else ''}")
             st.markdown(f"### {site_address}  \n{site_cityzip}")
+            st.markdown(f"Section: {section}")
             
             # Show property type
             property_use = address.get('PROPERTY_USE', '')
@@ -1081,3 +1200,6 @@ with st.sidebar.expander("Debug Information"):
         st.success("Fixed addresses.json file exists")
     else:
         st.error("Fixed addresses.json file not found")
+    
+    st.write("User Location:")
+    st.write(st.session_state.user_location)
