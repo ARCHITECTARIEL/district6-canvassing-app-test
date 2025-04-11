@@ -17,7 +17,7 @@ st.set_page_config(
 
 # Initialize session state
 if 'volunteer_name' not in st.session_state:
-    st.session_state.volunteer_name = "Jane Doe"
+    st.session_state.volunteer_name = ""
 if 'selected_precinct' not in st.session_state:
     st.session_state.selected_precinct = None
 if 'visited_addresses' not in st.session_state:
@@ -36,27 +36,30 @@ if 'cluster_view' not in st.session_state:
     st.session_state.cluster_view = True
 if 'selected_cluster' not in st.session_state:
     st.session_state.selected_cluster = None
+if 'support_levels' not in st.session_state:
+    st.session_state.support_levels = {}
+if 'donations' not in st.session_state:
+    st.session_state.donations = {}
 
 # Sidebar for navigation
 st.sidebar.title("District 6 Canvassing")
-st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Map_icon.svg/1200px-Map_icon.svg.png", width=100)
 
-# Real District 6 precinct data
+# Real District 6 precinct data - removed strategy tags
 def get_district6_precincts():
     return [
-        {"id": "106", "name": "Precinct 106", "total_addresses": 760, "strategy": "Steve Kornell", "turnout": "88.55%", "zip_codes": ["33701", "33705"]},
-        {"id": "108", "name": "Precinct 108", "total_addresses": 2773, "strategy": "Coquina Key", "turnout": "81.79%", "zip_codes": ["33701", "33705"]},
-        {"id": "109", "name": "Precinct 109", "total_addresses": 2151, "strategy": "", "turnout": "77.59%", "zip_codes": ["33701", "33705"]},
-        {"id": "116", "name": "Precinct 116", "total_addresses": 1511, "strategy": "Me", "turnout": "67.97%", "zip_codes": ["33701", "33705"]},
-        {"id": "117", "name": "Precinct 117", "total_addresses": 1105, "strategy": "", "turnout": "62.53%", "zip_codes": ["33701", "33705"]},
-        {"id": "118", "name": "Precinct 118", "total_addresses": 1175, "strategy": "OLD SE", "turnout": "85.36%", "zip_codes": ["33701", "33705"]},
-        {"id": "119", "name": "Precinct 119", "total_addresses": 2684, "strategy": "USF", "turnout": "65.31%", "zip_codes": ["33701", "33705"]},
-        {"id": "121", "name": "Precinct 121", "total_addresses": 922, "strategy": "RAYS", "turnout": "77.55%", "zip_codes": ["33701", "33705"]},
-        {"id": "122", "name": "Precinct 122", "total_addresses": 258, "strategy": "BILL EDWARDS", "turnout": "87.60%", "zip_codes": ["33701", "33705"]},
-        {"id": "123", "name": "Precinct 123", "total_addresses": 4627, "strategy": "HIPSTER $", "turnout": "85.35%", "zip_codes": ["33701", "33705"]},
-        {"id": "125", "name": "Precinct 125", "total_addresses": 1301, "strategy": "ROUND LAKE", "turnout": "79.94%", "zip_codes": ["33701", "33705"]},
-        {"id": "126", "name": "Precinct 126", "total_addresses": 1958, "strategy": "HIPSTER POOR", "turnout": "77.07%", "zip_codes": ["33701", "33705"]},
-        {"id": "130", "name": "Precinct 130", "total_addresses": 3764, "strategy": "OLD NE", "turnout": "86.16%", "zip_codes": ["33701", "33705"]}
+        {"id": "106", "name": "Precinct 106", "total_addresses": 760, "turnout": "88.55%", "zip_codes": ["33701", "33705"]},
+        {"id": "108", "name": "Precinct 108", "total_addresses": 2773, "turnout": "81.79%", "zip_codes": ["33701", "33705"]},
+        {"id": "109", "name": "Precinct 109", "total_addresses": 2151, "turnout": "77.59%", "zip_codes": ["33701", "33705"]},
+        {"id": "116", "name": "Precinct 116", "total_addresses": 1511, "turnout": "67.97%", "zip_codes": ["33701", "33705"]},
+        {"id": "117", "name": "Precinct 117", "total_addresses": 1105, "turnout": "62.53%", "zip_codes": ["33701", "33705"]},
+        {"id": "118", "name": "Precinct 118", "total_addresses": 1175, "turnout": "85.36%", "zip_codes": ["33701", "33705"]},
+        {"id": "119", "name": "Precinct 119", "total_addresses": 2684, "turnout": "65.31%", "zip_codes": ["33701", "33705"]},
+        {"id": "121", "name": "Precinct 121", "total_addresses": 922, "turnout": "77.55%", "zip_codes": ["33701", "33705"]},
+        {"id": "122", "name": "Precinct 122", "total_addresses": 258, "turnout": "87.60%", "zip_codes": ["33701", "33705"]},
+        {"id": "123", "name": "Precinct 123", "total_addresses": 4627, "turnout": "85.35%", "zip_codes": ["33701", "33705"]},
+        {"id": "125", "name": "Precinct 125", "total_addresses": 1301, "turnout": "79.94%", "zip_codes": ["33701", "33705"]},
+        {"id": "126", "name": "Precinct 126", "total_addresses": 1958, "turnout": "77.07%", "zip_codes": ["33701", "33705"]},
+        {"id": "130", "name": "Precinct 130", "total_addresses": 3764, "turnout": "86.16%", "zip_codes": ["33701", "33705"]}
     ]
 
 # Generate sample addresses as fallback
@@ -76,7 +79,7 @@ def generate_sample_addresses():
         "MAILING_CITY": "ST PETERSBURG",
         "MAILING_STATE": "FL",
         "MAILING_ZIP": "33705",
-        "PROPERTY_USE": "0110 Single Family Home",
+        "PROPERTY_USE": "Residential",
         "HX_YN": "Yes",
         "STR_NUM": 315,
         "STR_NAME": "TAYLOR",
@@ -107,7 +110,7 @@ def generate_sample_addresses():
                     "OWNER2": "FAMILY MEMBER" if i % 3 == 0 else "",
                     "SITE_ADDRESS": f"{building_num} {street_name} ST APT {unit_num}",
                     "SITE_CITYZIP": f"ST PETERSBURG, FL {zip_code}",
-                    "PROPERTY_USE": f"0300 Multi-Family",
+                    "PROPERTY_USE": "Residential",
                     "HX_YN": "Yes" if i % 2 == 0 else "No",
                     "STR_NUM": building_num,
                     "STR_NAME": street_name,
@@ -129,9 +132,30 @@ def generate_sample_addresses():
                 "OWNER2": "FAMILY MEMBER" if i % 3 == 0 else "",
                 "SITE_ADDRESS": f"{home_num} {street_name} AVE",
                 "SITE_CITYZIP": f"ST PETERSBURG, FL {zip_code}",
-                "PROPERTY_USE": f"0110 Single Family Home",
+                "PROPERTY_USE": "Residential",
                 "HX_YN": "Yes" if i % 2 == 0 else "No",
                 "STR_NUM": home_num,
+                "STR_NAME": street_name,
+                "STR_UNIT": "",
+                "STR_ZIP": zip_code,
+                "PRECINCT": precinct_id  # Explicitly assign precinct
+            })
+        
+        # Generate some businesses
+        for i in range(5):  # 5 businesses per precinct
+            business_num = 300 + i * 10
+            street_name = ["COMMERCIAL", "BUSINESS", "MARKET", "OFFICE"][i % 4]
+            zip_code = "33701" if i % 2 == 0 else "33705"
+            
+            sample_data.append({
+                "PARCEL_NUMBER": f"SAMPLE-{precinct_id}-BIZ-{i}",
+                "OWNER1": f"BUSINESS {precinct_id}-BIZ-{i}",
+                "OWNER2": "",
+                "SITE_ADDRESS": f"{business_num} {street_name} BLVD",
+                "SITE_CITYZIP": f"ST PETERSBURG, FL {zip_code}",
+                "PROPERTY_USE": "Business",
+                "HX_YN": "No",
+                "STR_NUM": business_num,
                 "STR_NAME": street_name,
                 "STR_UNIT": "",
                 "STR_ZIP": zip_code,
@@ -144,57 +168,39 @@ def generate_sample_addresses():
 @st.cache_data
 def load_addresses_from_github():
     try:
-        # URL to the specific file in your GitHub repository with proper URL encoding for special characters
-        filename = "Advanced Search 4-11-2025 (1).json"
-        encoded_filename = quote(filename)
-        github_url = f"https://raw.githubusercontent.com/ARCHITECTARIEL/district6-canvassing-app-test/main/{encoded_filename}"
+        # Try multiple possible filenames
+        filenames = [
+            "addresses.json",
+            "Advanced Search 4-11-2025 (1).json",
+            "Advanced_Search_4-11-2025_(1).json"
+        ]
         
-        st.sidebar.info(f"Attempting to load: {github_url}")
+        for filename in filenames:
+            encoded_filename = quote(filename)
+            github_url = f"https://raw.githubusercontent.com/ARCHITECTARIEL/district6-canvassing-app-test/main/{encoded_filename}"
+            
+            st.sidebar.info(f"Attempting to load: {github_url}")
+            
+            # Fetch the file from GitHub
+            response = requests.get(github_url)
+            
+            # Check if the request was successful
+            if response.status_code == 200:
+                # Parse the JSON data
+                try:
+                    address_data = response.json()
+                    st.sidebar.success(f"Successfully loaded {len(address_data)} addresses from GitHub")
+                    
+                    # Process the address data
+                    process_address_data(address_data)
+                    return address_data
+                except json.JSONDecodeError as e:
+                    st.sidebar.error(f"Error parsing JSON: {str(e)}")
+                    continue
         
-        # Fetch the file from GitHub
-        response = requests.get(github_url)
-        
-        # Check if the request was successful
-        if response.status_code == 200:
-            # Parse the JSON data
-            try:
-                address_data = response.json()
-                st.sidebar.success(f"Successfully loaded {len(address_data)} addresses from GitHub")
-                
-                # Process the address data
-                process_address_data(address_data)
-                return address_data
-            except json.JSONDecodeError as e:
-                st.sidebar.error(f"Error parsing JSON: {str(e)}")
-                # Try to show the first part of the response to help debug
-                st.sidebar.error(f"First 100 characters of response: {response.text[:100]}")
-                return generate_sample_addresses()
-        else:
-            st.sidebar.error(f"Failed to load addresses from GitHub: HTTP {response.status_code}")
-            
-            # Try alternative filenames
-            alternative_filenames = [
-                "addresses.json",
-                "Advanced_Search_4-11-2025_(1).json",
-                "Advanced_Search_4-11-2025_1.json"
-            ]
-            
-            for alt_filename in alternative_filenames:
-                encoded_alt_filename = quote(alt_filename)
-                alt_url = f"https://raw.githubusercontent.com/ARCHITECTARIEL/district6-canvassing-app-test/main/{encoded_alt_filename}"
-                st.sidebar.info(f"Trying alternative: {alt_url}")
-                
-                alt_response = requests.get(alt_url)
-                if alt_response.status_code == 200:
-                    try:
-                        address_data = alt_response.json()
-                        st.sidebar.success(f"Successfully loaded {len(address_data)} addresses from alternative file")
-                        process_address_data(address_data)
-                        return address_data
-                    except json.JSONDecodeError:
-                        continue
-            
-            return generate_sample_addresses()
+        # If all attempts fail, use sample data
+        st.sidebar.error("Failed to load addresses from GitHub. Using sample data instead.")
+        return generate_sample_addresses()
     except Exception as e:
         st.sidebar.error(f"Error loading addresses from GitHub: {str(e)}")
         return generate_sample_addresses()
@@ -203,6 +209,18 @@ def load_addresses_from_github():
 def process_address_data(address_data):
     # Add precinct information if not present
     for address in address_data:
+        # Clean up property use to be either "Residential" or "Business"
+        property_use = str(address.get('PROPERTY_USE', ''))
+        if '0300' in property_use or 'Multi-Family' in property_use or 'Condo' in property_use or 'Apartment' in property_use:
+            address['PROPERTY_USE'] = "Residential"
+        elif '0100' in property_use or '0110' in property_use or 'Single Family' in property_use or 'Home' in property_use:
+            address['PROPERTY_USE'] = "Residential"
+        elif 'Commercial' in property_use or 'Business' in property_use or 'Office' in property_use or 'Retail' in property_use:
+            address['PROPERTY_USE'] = "Business"
+        else:
+            # Default to residential if unclear
+            address['PROPERTY_USE'] = "Residential"
+        
         # Check if address already has precinct info
         if 'PRECINCT' not in address:
             # Assign precinct based on ZIP code
@@ -281,7 +299,7 @@ def process_address_data(address_data):
             "MAILING_CITY": "ST PETERSBURG",
             "MAILING_STATE": "FL",
             "MAILING_ZIP": "33705",
-            "PROPERTY_USE": "0110 Single Family Home",
+            "PROPERTY_USE": "Residential",
             "HX_YN": "Yes",
             "STR_NUM": 315,
             "STR_NAME": "TAYLOR",
@@ -354,7 +372,7 @@ def organize_addresses_by_precinct():
                 "owner2": address.get('OWNER2', ''),
                 "address": f"{address.get('STR_NUM', '')} {address.get('STR_NAME', '')} {address.get('STR_UNIT', '') or ''}".strip(),
                 "city_zip": address.get('SITE_CITYZIP', ''),
-                "property_type": address.get('PROPERTY_USE', 'Unknown').split(' ')[0] if address.get('PROPERTY_USE') else 'Unknown',
+                "property_type": address.get('PROPERTY_USE', 'Residential'),
                 "owner_occupied": "Yes" if address.get('HX_YN', 'No') == 'Yes' else "No",
                 "lat": lat,
                 "lon": lon,
@@ -393,8 +411,7 @@ def simple_cluster_addresses(addresses):
             avg_lon = sum(a['lon'] for a in building_addresses) / len(building_addresses)
             
             # Determine if this is a multi-family building
-            is_multifamily = any('0300' in str(a.get('property_type', '')) or 
-                                'Multi-Family' in str(a.get('property_type', '')) for a in building_addresses)
+            is_multifamily = any('Residential' in str(a.get('property_type', '')) for a in building_addresses)
             
             # Get building name if available
             building_name = next((a['building_name'] for a in building_addresses if a['building_name']), 
@@ -444,7 +461,7 @@ def simple_cluster_addresses(addresses):
                     'type': 'neighborhood',
                     'lat': avg_lat,
                     'lon': avg_lon,
-                    'label': f"{street_desc} ({len(neighborhood_addresses)} homes)",
+                    'label': f"{street_desc} ({len(neighborhood_addresses)} addresses)",
                     'address_count': len(neighborhood_addresses),
                     'addresses': neighborhood_addresses,
                     'id': f"cluster_{grid_key}"
@@ -456,7 +473,7 @@ def simple_cluster_addresses(addresses):
                     'type': 'single',
                     'lat': address['lat'],
                     'lon': address['lon'],
-                    'label': f"Single Address: {address['address']}",
+                    'label': f"{address['address']}",
                     'address_count': 1,
                     'addresses': [address],
                     'id': f"single_{address['id']}"
@@ -472,7 +489,11 @@ tab = st.sidebar.radio("Navigation", ["Home", "Demographics", "Election History"
 
 # Volunteer info in sidebar
 st.sidebar.markdown("---")
-st.sidebar.markdown(f"**Volunteer:** {st.session_state.volunteer_name}")
+volunteer_name = st.sidebar.text_input("Volunteer Name", value=st.session_state.volunteer_name)
+if volunteer_name != st.session_state.volunteer_name:
+    st.session_state.volunteer_name = volunteer_name
+    st.sidebar.success("Volunteer name updated!")
+
 if st.sidebar.button("Sync Data"):
     st.sidebar.success("Data synchronized successfully!")
 
@@ -482,7 +503,7 @@ if tab == "Home":
     
     # Precinct selector
     precincts = get_district6_precincts()
-    precinct_options = ["Select a precinct"] + [f"Precinct {p['id']} - {p['strategy']}" if p['strategy'] else f"Precinct {p['id']}" for p in precincts]
+    precinct_options = ["Select a precinct"] + [f"Precinct {p['id']}" for p in precincts]
     selected_option = st.selectbox("Select Precinct:", precinct_options)
     
     if selected_option != "Select a precinct":
@@ -494,14 +515,11 @@ if tab == "Home":
         
         # Display precinct info
         if selected_precinct_data:
-            col1, col2, col3 = st.columns(3)
+            col1, col2 = st.columns(2)
             with col1:
                 st.metric("Registered Voters", selected_precinct_data['total_addresses'])
             with col2:
                 st.metric("Voter Turnout", selected_precinct_data['turnout'])
-            with col3:
-                if selected_precinct_data['strategy']:
-                    st.metric("Strategy", selected_precinct_data['strategy'])
         
         # Get addresses for this precinct
         addresses = st.session_state.precinct_addresses.get(precinct_id, [])
@@ -604,8 +622,10 @@ if tab == "Home":
                                         with col1:
                                             owner = f"{address.get('owner1', 'Unknown')} {address.get('owner2', '')}"
                                             address_text = f"{address.get('address', '')}"
+                                            property_type = address.get('property_type', 'Residential')
                                             st.markdown(f"**{owner}**")
                                             st.text(address_text)
+                                            st.text(f"Type: {property_type}")
                                         
                                         with col2:
                                             address_id = address.get('id', '')
@@ -613,11 +633,15 @@ if tab == "Home":
                                             
                                             if not visited:
                                                 if st.button("Contact", key=f"contact_cluster_{address_id}"):
-                                                    st.session_state.visited_addresses.add(address_id)
-                                                    st.success("Interaction recorded successfully!")
+                                                    # Open contact dialog
+                                                    st.session_state.current_contact_address = address
                                                     st.rerun()
                                             else:
                                                 st.success("Visited")
+                                                # Show support level if recorded
+                                                if address_id in st.session_state.support_levels:
+                                                    support = st.session_state.support_levels[address_id]
+                                                    st.info(f"Support: {support}")
                                         
                                         st.markdown("---")
                         else:
@@ -696,8 +720,10 @@ if tab == "Home":
                                             address = cluster['addresses'][0]
                                             owner = f"{address.get('owner1', 'Unknown')} {address.get('owner2', '')}"
                                             address_text = f"{address.get('address', '')}"
+                                            property_type = address.get('property_type', 'Residential')
                                             st.markdown(f"**{owner}**")
                                             st.text(address_text)
+                                            st.text(f"Type: {property_type}")
                                         
                                         with col2:
                                             if st.button("View Details", key=f"view_{cluster['id']}"):
@@ -739,7 +765,7 @@ if tab == "Home":
             with col2:
                 show_not_visited = st.checkbox("Show Not Visited", value=True)
             with col3:
-                property_types = ["All"] + list(set([a.get('property_type', 'Unknown') for a in filtered_addresses]))
+                property_types = ["All", "Residential", "Business"]
                 property_filter = st.selectbox("Property Type", property_types)
             
             # Apply filters
@@ -748,7 +774,7 @@ if tab == "Home":
             if not show_not_visited:
                 filtered_addresses = [a for a in filtered_addresses if a['id'] in st.session_state.visited_addresses]
             if property_filter != "All":
-                filtered_addresses = [a for a in filtered_addresses if a.get('property_type', 'Unknown') == property_filter]
+                filtered_addresses = [a for a in filtered_addresses if a.get('property_type', 'Residential') == property_filter]
             
             # Only show individual address list if not in cluster view or if a cluster is selected
             if not st.session_state.cluster_view or st.session_state.selected_cluster:
@@ -788,35 +814,52 @@ if tab == "Home":
                         with col1:
                             owner = f"{address.get('owner1', 'Unknown')} {address.get('owner2', '')}"
                             address_text = f"{address.get('address', '')}, {address.get('city_zip', '')}"
-                            property_info = f"{address.get('property_type', 'Unknown')} • {'Owner Occupied' if address.get('owner_occupied') == 'Yes' else 'Not Owner Occupied'}"
+                            property_type = address.get('property_type', 'Residential')
                             
                             if is_ariel:
                                 st.markdown(f"**👤 {owner}**")
                                 st.markdown(f"**🏠 {address_text}**")
-                                st.markdown(f"**🏘️ {property_info}**")
+                                st.markdown(f"**🏘️ {property_type}**")
                             else:
                                 st.markdown(f"**{owner}**")
                                 st.text(address_text)
-                                st.text(property_info)
+                                st.text(f"Type: {property_type}")
                         
                         with col2:
                             if not visited:
                                 if st.button("Contact", key=f"contact_{address_id}"):
-                                    st.session_state.visited_addresses.add(address_id)
-                                    st.success("Interaction recorded successfully!")
+                                    # Open contact dialog
+                                    st.session_state.current_contact_address = address
                                     st.rerun()
                                 
                                 if st.button("Not Home", key=f"nothome_{address_id}"):
                                     st.session_state.visited_addresses.add(address_id)
+                                    st.session_state.interaction_notes[address_id] = "Not home during visit."
                                     st.success("Marked as Not Home")
                                     st.rerun()
                                 
                                 if st.button("Skip", key=f"skip_{address_id}"):
                                     st.session_state.visited_addresses.add(address_id)
+                                    st.session_state.interaction_notes[address_id] = "Skipped during canvassing."
                                     st.success("Marked as Skipped")
                                     st.rerun()
                             else:
                                 st.success("Visited")
+                                # Show support level if recorded
+                                if address_id in st.session_state.support_levels:
+                                    support = st.session_state.support_levels[address_id]
+                                    st.info(f"Support: {support}")
+                                
+                                # Show donation if recorded
+                                if address_id in st.session_state.donations and st.session_state.donations[address_id] > 0:
+                                    donation = st.session_state.donations[address_id]
+                                    st.success(f"Donation: ${donation}")
+                                
+                                # View notes button
+                                if address_id in st.session_state.interaction_notes:
+                                    if st.button("View Notes", key=f"view_notes_{address_id}"):
+                                        st.session_state.current_contact_address = address
+                                        st.rerun()
                         
                         if is_ariel:
                             st.markdown("---")
@@ -841,6 +884,97 @@ if tab == "Home":
             st.warning(f"No addresses found for Precinct {precinct_id}. Please try another precinct or check your data file.")
     else:
         st.info("Please select a precinct to begin canvassing")
+    
+    # Contact dialog
+    if hasattr(st.session_state, 'current_contact_address') and st.session_state.current_contact_address:
+        address = st.session_state.current_contact_address
+        address_id = address.get('id', '')
+        
+        st.markdown("---")
+        st.subheader("Contact Information")
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            owner = f"{address.get('owner1', 'Unknown')} {address.get('owner2', '')}"
+            address_text = f"{address.get('address', '')}, {address.get('city_zip', '')}"
+            property_type = address.get('property_type', 'Residential')
+            
+            st.markdown(f"**{owner}**")
+            st.text(address_text)
+            st.text(f"Type: {property_type}")
+        
+        with col2:
+            if st.button("Close"):
+                del st.session_state.current_contact_address
+                st.rerun()
+        
+        # Support level
+        st.subheader("Voter Support Level")
+        support_options = ["Strong Support", "Leaning Support", "Undecided", "Leaning Against", "Strong Against", "Refused"]
+        current_support = st.session_state.support_levels.get(address_id, "")
+        support = st.radio("Support Level:", support_options, index=support_options.index(current_support) if current_support in support_options else 2)
+        
+        # Donation
+        st.subheader("Donation Information")
+        current_donation = st.session_state.donations.get(address_id, 0)
+        donation = st.number_input("Donation Amount ($):", min_value=0.0, value=float(current_donation), step=5.0)
+        
+        # Notes
+        st.subheader("Interaction Notes")
+        current_notes = st.session_state.interaction_notes.get(address_id, "")
+        notes = st.text_area("Notes:", value=current_notes, height=100)
+        
+        # Tags
+        st.subheader("Quick Tags")
+        col1, col2, col3, col4 = st.columns(4)
+        tag_options = ["Interested in Yard Sign", "Wants More Info", "Willing to Volunteer", "Needs Follow-up"]
+        
+        # Extract existing tags from notes
+        existing_tags = []
+        for tag in tag_options:
+            if tag in current_notes:
+                existing_tags.append(tag)
+        
+        # Display tag checkboxes
+        selected_tags = []
+        with col1:
+            if st.checkbox(tag_options[0], value=tag_options[0] in existing_tags):
+                selected_tags.append(tag_options[0])
+        with col2:
+            if st.checkbox(tag_options[1], value=tag_options[1] in existing_tags):
+                selected_tags.append(tag_options[1])
+        with col3:
+            if st.checkbox(tag_options[2], value=tag_options[2] in existing_tags):
+                selected_tags.append(tag_options[2])
+        with col4:
+            if st.checkbox(tag_options[3], value=tag_options[3] in existing_tags):
+                selected_tags.append(tag_options[3])
+        
+        # Save button
+        if st.button("Save Interaction"):
+            # Add tags to notes if not already present
+            for tag in selected_tags:
+                if tag not in notes:
+                    if notes:
+                        notes += f"\n[{tag}]"
+                    else:
+                        notes = f"[{tag}]"
+            
+            # Remove tags that were unchecked
+            for tag in tag_options:
+                if tag not in selected_tags and f"[{tag}]" in notes:
+                    notes = notes.replace(f"[{tag}]", "").strip()
+            
+            # Save all information
+            st.session_state.visited_addresses.add(address_id)
+            st.session_state.interaction_notes[address_id] = notes
+            st.session_state.support_levels[address_id] = support
+            st.session_state.donations[address_id] = donation
+            
+            # Close dialog
+            del st.session_state.current_contact_address
+            st.success("Interaction saved successfully!")
+            st.rerun()
 
 elif tab == "Demographics":
     st.title("Neighborhood Demographics")
@@ -1073,6 +1207,47 @@ elif tab == "Stats":
         st.metric("Addresses Visited", visited_count)
     with col3:
         st.metric("Coverage", f"{coverage_percentage:.1f}%")
+    
+    # Support level breakdown
+    st.subheader("Support Level Breakdown")
+    
+    # Count support levels
+    support_counts = {
+        "Strong Support": 0,
+        "Leaning Support": 0,
+        "Undecided": 0,
+        "Leaning Against": 0,
+        "Strong Against": 0,
+        "Refused": 0
+    }
+    
+    for support in st.session_state.support_levels.values():
+        if support in support_counts:
+            support_counts[support] += 1
+    
+    # Create a DataFrame for the chart
+    support_df = pd.DataFrame({
+        'Support Level': list(support_counts.keys()),
+        'Count': list(support_counts.values())
+    })
+    
+    # Display the chart
+    st.bar_chart(support_df.set_index('Support Level'))
+    
+    # Donation statistics
+    st.subheader("Donation Statistics")
+    
+    total_donations = sum(st.session_state.donations.values())
+    donors_count = len([d for d in st.session_state.donations.values() if d > 0])
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Donations", f"${total_donations:.2f}")
+    with col2:
+        st.metric("Number of Donors", donors_count)
+    with col3:
+        avg_donation = total_donations / donors_count if donors_count > 0 else 0
+        st.metric("Average Donation", f"${avg_donation:.2f}")
     
     # Precinct coverage
     st.subheader("Precinct Coverage")
