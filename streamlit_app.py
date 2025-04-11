@@ -235,13 +235,33 @@ def fix_json_format(content):
         if fixed_content[0] != '[':
             fixed_content = '[' + fixed_content[fixed_content.find('{'): fixed_content.rfind('}')+1] + ']'
         
-        # Try to parse the fixed content
+import json
+import streamlit as st
+
+@st.cache_data
+def load_addresses():
+    file_paths = [
+        r"C:\Users\Ariel\Advanced Search 4-11-2025 (1).json",
+        r"C:\Users\Ariel\rrfgiqn2.json",
+        r"C:\Users\Ariel\Voting Precincts 2022.geojson"
+    ]
+    
+    data = []
+    for file_path in file_paths:
+        st.write(f"Attempting to load: {file_path}")  # Debug output
         try:
-            json.loads(fixed_content)
-            return fixed_content
+            with open(file_path, 'r') as f:
+                file_data = json.load(f)
+                data.append(file_data)
+        except FileNotFoundError:
+            st.warning(f"Could not load {file_path}: File not found")
         except json.JSONDecodeError:
-            # If still invalid, return None
-            return None
+            st.warning(f"Could not parse JSON in file: {file_path}")
+    
+    return data
+
+# Call the function
+addresses = load_addresses()
 
 # Load addresses from local file or GitHub
 @st.cache_data
