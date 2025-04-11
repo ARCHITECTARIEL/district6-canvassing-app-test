@@ -28,6 +28,8 @@ if 'address_data' not in st.session_state:
     st.session_state.address_data = None
 if 'search_query' not in st.session_state:
     st.session_state.search_query = ""
+if 'search_suggestions' not in st.session_state:
+    st.session_state.search_suggestions = []
 if 'precinct_addresses' not in st.session_state:
     st.session_state.precinct_addresses = {}
 if 'data_loaded' not in st.session_state:
@@ -40,6 +42,24 @@ if 'support_levels' not in st.session_state:
     st.session_state.support_levels = {}
 if 'donations' not in st.session_state:
     st.session_state.donations = {}
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = "home"
+if 'contact_address' not in st.session_state:
+    st.session_state.contact_address = None
+if 'json_load_error' not in st.session_state:
+    st.session_state.json_load_error = None
+if 'geographic_section' not in st.session_state:
+    st.session_state.geographic_section = "All"
+if 'user_location' not in st.session_state:
+    st.session_state.user_location = None
+
+# Function to navigate between pages
+def navigate_to(page, address=None):
+    if address is not None:
+        st.session_state.contact_address = address
+    st.session_state.current_page = page
+    # Use st.rerun() instead of st.experimental_rerun() which is deprecated
+    st.rerun()
 
 # Sidebar for navigation
 st.sidebar.title("District 6 Canvassing")
@@ -47,19 +67,19 @@ st.sidebar.title("District 6 Canvassing")
 # Real District 6 precinct data - removed strategy tags
 def get_district6_precincts():
     return [
-        {"id": "106", "name": "Precinct 106", "total_addresses": 760, "turnout": "88.55%", "zip_codes": ["33701", "33705"]},
-        {"id": "108", "name": "Precinct 108", "total_addresses": 2773, "turnout": "81.79%", "zip_codes": ["33701", "33705"]},
-        {"id": "109", "name": "Precinct 109", "total_addresses": 2151, "turnout": "77.59%", "zip_codes": ["33701", "33705"]},
-        {"id": "116", "name": "Precinct 116", "total_addresses": 1511, "turnout": "67.97%", "zip_codes": ["33701", "33705"]},
-        {"id": "117", "name": "Precinct 117", "total_addresses": 1105, "turnout": "62.53%", "zip_codes": ["33701", "33705"]},
-        {"id": "118", "name": "Precinct 118", "total_addresses": 1175, "turnout": "85.36%", "zip_codes": ["33701", "33705"]},
-        {"id": "119", "name": "Precinct 119", "total_addresses": 2684, "turnout": "65.31%", "zip_codes": ["33701", "33705"]},
-        {"id": "121", "name": "Precinct 121", "total_addresses": 922, "turnout": "77.55%", "zip_codes": ["33701", "33705"]},
-        {"id": "122", "name": "Precinct 122", "total_addresses": 258, "turnout": "87.60%", "zip_codes": ["33701", "33705"]},
-        {"id": "123", "name": "Precinct 123", "total_addresses": 4627, "turnout": "85.35%", "zip_codes": ["33701", "33705"]},
-        {"id": "125", "name": "Precinct 125", "total_addresses": 1301, "turnout": "79.94%", "zip_codes": ["33701", "33705"]},
-        {"id": "126", "name": "Precinct 126", "total_addresses": 1958, "turnout": "77.07%", "zip_codes": ["33701", "33705"]},
-        {"id": "130", "name": "Precinct 130", "total_addresses": 3764, "turnout": "86.16%", "zip_codes": ["33701", "33705"]}
+        {"id": "106", "name": "Precinct 106", "total_addresses": 760, "turnout": "88.55%", "zip_codes": ["33701", "33705"], "section": "North"},
+        {"id": "108", "name": "Precinct 108", "total_addresses": 2773, "turnout": "81.79%", "zip_codes": ["33701", "33705"], "section": "North"},
+        {"id": "109", "name": "Precinct 109", "total_addresses": 2151, "turnout": "77.59%", "zip_codes": ["33701", "33705"], "section": "East"},
+        {"id": "116", "name": "Precinct 116", "total_addresses": 1511, "turnout": "67.97%", "zip_codes": ["33701", "33705"], "section": "East"},
+        {"id": "117", "name": "Precinct 117", "total_addresses": 1105, "turnout": "62.53%", "zip_codes": ["33701", "33705"], "section": "South"},
+        {"id": "118", "name": "Precinct 118", "total_addresses": 1175, "turnout": "85.36%", "zip_codes": ["33701", "33705"], "section": "South"},
+        {"id": "119", "name": "Precinct 119", "total_addresses": 2684, "turnout": "65.31%", "zip_codes": ["33701", "33705"], "section": "West"},
+        {"id": "121", "name": "Precinct 121", "total_addresses": 922, "turnout": "77.55%", "zip_codes": ["33701", "33705"], "section": "West"},
+        {"id": "122", "name": "Precinct 122", "total_addresses": 258, "turnout": "87.60%", "zip_codes": ["33701", "33705"], "section": "North"},
+        {"id": "123", "name": "Precinct 123", "total_addresses": 4627, "turnout": "85.35%", "zip_codes": ["33701", "33705"], "section": "East"},
+        {"id": "125", "name": "Precinct 125", "total_addresses": 1301, "turnout": "79.94%", "zip_codes": ["33701", "33705"], "section": "South"},
+        {"id": "126", "name": "Precinct 126", "total_addresses": 1958, "turnout": "77.07%", "zip_codes": ["33701", "33705"], "section": "West"},
+        {"id": "130", "name": "Precinct 130", "total_addresses": 3764, "turnout": "86.16%", "zip_codes": ["33701", "33705"], "section": "North"}
     ]
 
 # Generate sample addresses as fallback
@@ -85,13 +105,17 @@ def generate_sample_addresses():
         "STR_NAME": "TAYLOR",
         "STR_UNIT": "",
         "STR_ZIP": "33705",
-        "PRECINCT": "106"  # Explicitly assign precinct
+        "PRECINCT": "106",  # Explicitly assign precinct
+        "LAT": 27.773056,  # Add coordinates for map
+        "LON": -82.639999,
+        "SECTION": "North"  # Assign geographic section
     })
     
     # Generate additional sample addresses for each precinct
     precincts = get_district6_precincts()
     for precinct in precincts:
         precinct_id = precinct["id"]
+        section = precinct["section"]
         
         # Generate a few apartment buildings/condos with multiple units
         for b in range(3):
@@ -100,9 +124,17 @@ def generate_sample_addresses():
             street_name = ["MAIN", "OAK", "BEACH", "CENTRAL"][b % 4]
             zip_code = "33701" if b % 2 == 0 else "33705"
             
+            # Base coordinates for this building
+            base_lat = 27.773056 + (int(precinct_id) % 10) * 0.001
+            base_lon = -82.639999 - (int(precinct_id) % 5) * 0.001
+            
             # Generate multiple units in the same building
             for i in range(10):  # 10 units per building
                 unit_num = i + 1
+                
+                # Small offset for each unit in the same building
+                unit_lat = base_lat + i * 0.00005
+                unit_lon = base_lon + i * 0.00005
                 
                 sample_data.append({
                     "PARCEL_NUMBER": f"SAMPLE-{precinct_id}-BLDG{b}-UNIT{unit_num}",
@@ -117,7 +149,10 @@ def generate_sample_addresses():
                     "STR_UNIT": f"APT {unit_num}",
                     "STR_ZIP": zip_code,
                     "PRECINCT": precinct_id,  # Explicitly assign precinct
-                    "BUILDING_NAME": building_name
+                    "BUILDING_NAME": building_name,
+                    "LAT": unit_lat,  # Add coordinates for map
+                    "LON": unit_lon,
+                    "SECTION": section  # Assign geographic section
                 })
         
         # Generate some single-family homes
@@ -125,6 +160,10 @@ def generate_sample_addresses():
             home_num = 200 + i * 10
             street_name = ["PINE", "MAPLE", "PALM", "OCEAN"][i % 4]
             zip_code = "33701" if i % 2 == 0 else "33705"
+            
+            # Coordinates for this home
+            home_lat = 27.773056 + (int(precinct_id) % 10) * 0.001 + i * 0.0001
+            home_lon = -82.639999 - (int(precinct_id) % 5) * 0.001 - i * 0.0001
             
             sample_data.append({
                 "PARCEL_NUMBER": f"SAMPLE-{precinct_id}-HOME-{i}",
@@ -138,7 +177,10 @@ def generate_sample_addresses():
                 "STR_NAME": street_name,
                 "STR_UNIT": "",
                 "STR_ZIP": zip_code,
-                "PRECINCT": precinct_id  # Explicitly assign precinct
+                "PRECINCT": precinct_id,  # Explicitly assign precinct
+                "LAT": home_lat,  # Add coordinates for map
+                "LON": home_lon,
+                "SECTION": section  # Assign geographic section
             })
         
         # Generate some businesses
@@ -146,6 +188,10 @@ def generate_sample_addresses():
             business_num = 300 + i * 10
             street_name = ["COMMERCIAL", "BUSINESS", "MARKET", "OFFICE"][i % 4]
             zip_code = "33701" if i % 2 == 0 else "33705"
+            
+            # Coordinates for this business
+            biz_lat = 27.773056 + (int(precinct_id) % 10) * 0.001 - i * 0.0001
+            biz_lon = -82.639999 - (int(precinct_id) % 5) * 0.001 + i * 0.0001
             
             sample_data.append({
                 "PARCEL_NUMBER": f"SAMPLE-{precinct_id}-BIZ-{i}",
@@ -159,17 +205,90 @@ def generate_sample_addresses():
                 "STR_NAME": street_name,
                 "STR_UNIT": "",
                 "STR_ZIP": zip_code,
-                "PRECINCT": precinct_id  # Explicitly assign precinct
+                "PRECINCT": precinct_id,  # Explicitly assign precinct
+                "LAT": biz_lat,  # Add coordinates for map
+                "LON": biz_lon,
+                "SECTION": section  # Assign geographic section
             })
     
     return sample_data
 
-# Load addresses directly from GitHub repository
+# Function to fix JSON formatting issues
+def fix_json_format(content):
+    """Fix common JSON formatting issues"""
+    try:
+        # Check if the content is already valid JSON
+        json.loads(content)
+        return content
+    except json.JSONDecodeError:
+        # Fix common issues
+        fixed_content = content
+        
+        # Ensure content starts with '[' and ends with ']'
+        fixed_content = fixed_content.strip()
+        if not fixed_content.startswith('['):
+            fixed_content = '[' + fixed_content
+        if not fixed_content.endswith(']'):
+            fixed_content = fixed_content + ']'
+        
+        # Remove any problematic characters at the beginning
+        if fixed_content[0] != '[':
+            fixed_content = '[' + fixed_content[fixed_content.find('{'): fixed_content.rfind('}')+1] + ']'
+        
+        # Try to parse the fixed content
+        try:
+            json.loads(fixed_content)
+            return fixed_content
+        except json.JSONDecodeError:
+            # If still invalid, return None
+            return None
+
+# Load addresses from local file or GitHub
 @st.cache_data
-def load_addresses_from_github():
+def load_addresses():
+    # File paths to try in order
+    file_paths = [
+        '/home/ubuntu/fixed_addresses.json',  # Our fixed version
+        '/home/ubuntu/addresses.json',
+        '/home/ubuntu/upload/addresses.json',
+        '/home/ubuntu/upload/Advanced Search 4-11-2025 (1).json'
+    ]
+    
+    # Try local files first
+    for file_path in file_paths:
+        try:
+            st.sidebar.info(f"Attempting to load: {file_path}")
+            with open(file_path, 'r') as f:
+                content = f.read()
+                
+                # Try to parse as is
+                try:
+                    address_data = json.loads(content)
+                    st.sidebar.success(f"Successfully loaded {len(address_data)} addresses from {file_path}")
+                    process_address_data(address_data)
+                    return address_data
+                except json.JSONDecodeError as e:
+                    # Try to fix the JSON format
+                    st.sidebar.warning(f"JSON parsing error: {str(e)}. Attempting to fix...")
+                    fixed_content = fix_json_format(content)
+                    if fixed_content:
+                        try:
+                            address_data = json.loads(fixed_content)
+                            st.sidebar.success(f"Successfully fixed and loaded {len(address_data)} addresses from {file_path}")
+                            process_address_data(address_data)
+                            return address_data
+                        except json.JSONDecodeError as e2:
+                            st.sidebar.error(f"Could not fix JSON format: {str(e2)}")
+                    else:
+                        st.sidebar.error("Could not fix JSON format")
+        except Exception as e:
+            st.sidebar.warning(f"Could not load {file_path}: {str(e)}")
+    
+    # If local files fail, try GitHub
     try:
         # Try multiple possible filenames
         filenames = [
+            "fixed_addresses.json",
             "addresses.json",
             "Advanced Search 4-11-2025 (1).json",
             "Advanced_Search_4-11-2025_(1).json"
@@ -179,31 +298,74 @@ def load_addresses_from_github():
             encoded_filename = quote(filename)
             github_url = f"https://raw.githubusercontent.com/ARCHITECTARIEL/district6-canvassing-app-test/main/{encoded_filename}"
             
-            st.sidebar.info(f"Attempting to load: {github_url}")
+            st.sidebar.info(f"Attempting to load from GitHub: {github_url}")
             
             # Fetch the file from GitHub
             response = requests.get(github_url)
             
             # Check if the request was successful
             if response.status_code == 200:
-                # Parse the JSON data
+                content = response.text
+                
+                # Try to parse as is
                 try:
-                    address_data = response.json()
+                    address_data = json.loads(content)
                     st.sidebar.success(f"Successfully loaded {len(address_data)} addresses from GitHub")
-                    
-                    # Process the address data
                     process_address_data(address_data)
                     return address_data
                 except json.JSONDecodeError as e:
-                    st.sidebar.error(f"Error parsing JSON: {str(e)}")
-                    continue
-        
-        # If all attempts fail, use sample data
-        st.sidebar.error("Failed to load addresses from GitHub. Using sample data instead.")
-        return generate_sample_addresses()
+                    # Try to fix the JSON format
+                    st.sidebar.warning(f"JSON parsing error: {str(e)}. Attempting to fix...")
+                    fixed_content = fix_json_format(content)
+                    if fixed_content:
+                        try:
+                            address_data = json.loads(fixed_content)
+                            st.sidebar.success(f"Successfully fixed and loaded {len(address_data)} addresses from GitHub")
+                            process_address_data(address_data)
+                            return address_data
+                        except json.JSONDecodeError as e2:
+                            st.sidebar.error(f"Could not fix JSON format: {str(e2)}")
+                    else:
+                        st.sidebar.error("Could not fix JSON format")
     except Exception as e:
         st.sidebar.error(f"Error loading addresses from GitHub: {str(e)}")
-        return generate_sample_addresses()
+    
+    # File upload option as last resort
+    st.sidebar.warning("Could not load address data from files or GitHub. Please upload a file.")
+    uploaded_file = st.sidebar.file_uploader("Upload address data (JSON format)", type=["json"])
+    if uploaded_file is not None:
+        try:
+            content = uploaded_file.read().decode()
+            
+            # Try to parse as is
+            try:
+                address_data = json.loads(content)
+                st.sidebar.success(f"Successfully loaded {len(address_data)} addresses from uploaded file")
+                process_address_data(address_data)
+                return address_data
+            except json.JSONDecodeError as e:
+                # Try to fix the JSON format
+                st.sidebar.warning(f"JSON parsing error: {str(e)}. Attempting to fix...")
+                fixed_content = fix_json_format(content)
+                if fixed_content:
+                    try:
+                        address_data = json.loads(fixed_content)
+                        st.sidebar.success(f"Successfully fixed and loaded {len(address_data)} addresses from uploaded file")
+                        process_address_data(address_data)
+                        return address_data
+                    except json.JSONDecodeError as e2:
+                        st.sidebar.error(f"Could not fix JSON format: {str(e2)}")
+                        st.session_state.json_load_error = str(e2)
+                else:
+                    st.sidebar.error("Could not fix JSON format")
+                    st.session_state.json_load_error = "Could not fix JSON format"
+        except Exception as e:
+            st.sidebar.error(f"Error processing uploaded file: {str(e)}")
+            st.session_state.json_load_error = str(e)
+    
+    # If all else fails, use sample data
+    st.sidebar.error("All attempts to load address data failed. Using sample data instead.")
+    return generate_sample_addresses()
 
 # Process address data
 def process_address_data(address_data):
@@ -276,14 +438,47 @@ def process_address_data(address_data):
                     address['BUILDING_NAME'] = f"{street_name.title()} {street_num} Condos"
                 else:
                     address['BUILDING_NAME'] = f"Building {street_num}"
+        
+        # Add coordinates for map if not present
+        if 'LAT' not in address or 'LON' not in address:
+            # Generate a latitude and longitude near St. Petersburg, FL
+            # This is just for demonstration - real app would use actual coordinates
+            base_lat = 27.773056  # St. Petersburg latitude
+            base_lon = -82.639999  # St. Petersburg longitude
+            
+            # Add small offsets based on street number and precinct to create a scatter effect
+            street_num = float(address.get('STR_NUM', 0))
+            precinct_id = str(address.get('PRECINCT', '106'))
+            
+            address['LAT'] = base_lat + (street_num % 100) * 0.0001 + (int(precinct_id) % 10) * 0.001
+            address['LON'] = base_lon + (street_num % 50) * 0.0002 - (int(precinct_id) % 5) * 0.001
+        
+        # Add geographic section based on precinct
+        if 'SECTION' not in address:
+            precinct_id = str(address.get('PRECINCT', ''))
+            precincts = get_district6_precincts()
+            precinct_info = next((p for p in precincts if p['id'] == precinct_id), None)
+            
+            if precinct_info:
+                address['SECTION'] = precinct_info['section']
+            else:
+                # Default to North if precinct not found
+                address['SECTION'] = "North"
     
     # Make sure Ariel's address is included
     ariel_exists = False
     for address in address_data:
+        owner1 = str(address.get('OWNER1', ''))
         if (address.get('STR_NUM') == 315 and 
             'TAYLOR' in str(address.get('STR_NAME', '')) and 
             address.get('STR_ZIP') == '33705'):
             ariel_exists = True
+            # Make sure Ariel's address has coordinates
+            if 'LAT' not in address or 'LON' not in address:
+                address['LAT'] = 27.773056  # St. Petersburg latitude
+                address['LON'] = -82.639999  # St. Petersburg longitude
+            # Make sure Ariel's address has a section
+            address['SECTION'] = "North"
             break
     
     # Add Ariel's address if not found
@@ -305,14 +500,45 @@ def process_address_data(address_data):
             "STR_NAME": "TAYLOR",
             "STR_UNIT": "",
             "STR_ZIP": "33705",
-            "PRECINCT": "106"  # Explicitly assign precinct
+            "PRECINCT": "106",  # Explicitly assign precinct
+            "LAT": 27.773056,  # Add coordinates for map
+            "LON": -82.639999,
+            "SECTION": "North"  # Assign geographic section
         }
         address_data.append(ariel_address)
         st.sidebar.success("Added Ariel Fernandez's address to the dataset")
 
+# Simple function to group addresses by proximity without using sklearn
+def simple_group_addresses(addresses):
+    # Group by street name first
+    street_groups = defaultdict(list)
+    for address in addresses:
+        street_name = str(address.get('STR_NAME', '')).upper()
+        if street_name:
+            street_groups[street_name].append(address)
+    
+    # For each street, group by building number ranges
+    building_groups = []
+    for street_name, street_addresses in street_groups.items():
+        # Sort by building number
+        sorted_addresses = sorted(street_addresses, key=lambda x: int(x.get('STR_NUM', 0)))
+        
+        # Group into chunks of nearby buildings
+        chunk_size = 5  # Adjust as needed
+        for i in range(0, len(sorted_addresses), chunk_size):
+            chunk = sorted_addresses[i:i+chunk_size]
+            if chunk:
+                # Create a group name based on street and number range
+                start_num = chunk[0].get('STR_NUM', 0)
+                end_num = chunk[-1].get('STR_NUM', 0)
+                group_name = f"{street_name} {start_num}-{end_num}"
+                building_groups.append((group_name, chunk))
+    
+    return building_groups
+
 # Load address data when the app starts
 if not st.session_state.data_loaded:
-    st.session_state.address_data = load_addresses_from_github()
+    st.session_state.address_data = load_addresses()
     st.session_state.data_loaded = True
 
 # Organize addresses by precinct
@@ -341,994 +567,679 @@ def organize_addresses_by_precinct():
                 else:
                     precinct_id = '130'  # Default for other ZIP codes
             
-            # Generate unique coordinates with small variations for addresses in the same building
-            # This ensures they cluster properly but don't overlap exactly
-            street_num = address.get('STR_NUM', 0)
-            street_name = str(address.get('STR_NAME', ''))
-            unit = str(address.get('STR_UNIT', ''))
-            
-            # Base coordinates for St. Petersburg
-            base_lat = 27.773056
-            base_lon = -82.639999
-            
-            # Generate deterministic but unique coordinates
-            hash_val = hash(f"{street_num}{street_name}")
-            lat = base_lat + (hash_val % 1000) / 50000
-            lon = base_lon + (hash_val % 1000) / 50000
-            
-            # Add small variation for units in the same building
-            if unit:
-                unit_num = ''.join(filter(str.isdigit, unit))
-                if unit_num:
-                    unit_val = int(unit_num)
-                    lat += unit_val / 1000000
-                    lon += unit_val / 1000000
-            
-            # Format the address data
-            formatted_address = {
-                "id": f"{precinct_id}_{address.get('PARCEL_NUMBER', '')}",
-                "precinct_id": precinct_id,
-                "owner1": address.get('OWNER1', 'Unknown'),
-                "owner2": address.get('OWNER2', ''),
-                "address": f"{address.get('STR_NUM', '')} {address.get('STR_NAME', '')} {address.get('STR_UNIT', '') or ''}".strip(),
-                "city_zip": address.get('SITE_CITYZIP', ''),
-                "property_type": address.get('PROPERTY_USE', 'Residential'),
-                "owner_occupied": "Yes" if address.get('HX_YN', 'No') == 'Yes' else "No",
-                "lat": lat,
-                "lon": lon,
-                "street_num": street_num,
-                "street_name": street_name,
-                "unit": unit,
-                "building_name": address.get('BUILDING_NAME', '')
-            }
-            
-            # Add to the appropriate precinct
+            # Add address to the appropriate precinct
             if precinct_id in st.session_state.precinct_addresses:
-                st.session_state.precinct_addresses[precinct_id].append(formatted_address)
+                st.session_state.precinct_addresses[precinct_id].append(address)
 
-# Simple clustering function that doesn't rely on scikit-learn
-def simple_cluster_addresses(addresses):
-    # Group addresses by building (street number and name)
-    building_clusters = defaultdict(list)
-    
-    for address in addresses:
-        # Create a building key
-        building_key = f"{address['street_num']}_{address['street_name']}"
-        building_clusters[building_key].append(address)
-    
-    # Create clusters
-    clusters = []
-    single_addresses = []
-    
-    # Process building clusters
-    for building_key, building_addresses in building_clusters.items():
-        if len(building_addresses) > 1:
-            # This is a multi-unit building
-            first_address = building_addresses[0]
-            
-            # Calculate average coordinates
-            avg_lat = sum(a['lat'] for a in building_addresses) / len(building_addresses)
-            avg_lon = sum(a['lon'] for a in building_addresses) / len(building_addresses)
-            
-            # Determine if this is a multi-family building
-            is_multifamily = any('Residential' in str(a.get('property_type', '')) for a in building_addresses)
-            
-            # Get building name if available
-            building_name = next((a['building_name'] for a in building_addresses if a['building_name']), 
-                               f"{first_address['street_num']} {first_address['street_name']}")
-            
-            clusters.append({
-                'type': 'building' if is_multifamily else 'neighborhood',
-                'lat': avg_lat,
-                'lon': avg_lon,
-                'label': f"{building_name} ({len(building_addresses)} units)" if is_multifamily else 
-                         f"{first_address['street_num']} {first_address['street_name']} Area ({len(building_addresses)} homes)",
-                'address_count': len(building_addresses),
-                'addresses': building_addresses,
-                'id': f"cluster_{building_key}"
-            })
-        else:
-            # Single address
-            single_addresses.extend(building_addresses)
-    
-    # Group remaining single addresses by neighborhood (approximate by coordinates)
-    if single_addresses:
-        # Simple geographic grouping - group addresses that are close together
-        neighborhood_clusters = defaultdict(list)
-        
-        for address in single_addresses:
-            # Create a rough geographic grid (0.001 degrees is roughly 100 meters)
-            grid_lat = round(address['lat'] * 1000) / 1000
-            grid_lon = round(address['lon'] * 1000) / 1000
-            grid_key = f"{grid_lat}_{grid_lon}"
-            
-            neighborhood_clusters[grid_key].append(address)
-        
-        # Process neighborhood clusters
-        for grid_key, neighborhood_addresses in neighborhood_clusters.items():
-            if len(neighborhood_addresses) > 1:
-                # This is a neighborhood cluster
-                avg_lat = sum(a['lat'] for a in neighborhood_addresses) / len(neighborhood_addresses)
-                avg_lon = sum(a['lon'] for a in neighborhood_addresses) / len(neighborhood_addresses)
-                
-                # Get a representative street name
-                street_names = set(a['street_name'] for a in neighborhood_addresses if a['street_name'])
-                street_desc = ", ".join(list(street_names)[:2])
-                if len(street_names) > 2:
-                    street_desc += " area"
-                
-                clusters.append({
-                    'type': 'neighborhood',
-                    'lat': avg_lat,
-                    'lon': avg_lon,
-                    'label': f"{street_desc} ({len(neighborhood_addresses)} addresses)",
-                    'address_count': len(neighborhood_addresses),
-                    'addresses': neighborhood_addresses,
-                    'id': f"cluster_{grid_key}"
-                })
-            else:
-                # Add as individual address
-                address = neighborhood_addresses[0]
-                clusters.append({
-                    'type': 'single',
-                    'lat': address['lat'],
-                    'lon': address['lon'],
-                    'label': f"{address['address']}",
-                    'address_count': 1,
-                    'addresses': [address],
-                    'id': f"single_{address['id']}"
-                })
-    
-    return clusters
-
-# Organize addresses by precinct
-organize_addresses_by_precinct()
-
-# Navigation
-tab = st.sidebar.radio("Navigation", ["Home", "Demographics", "Election History", "Stats", "Settings"])
-
-# Volunteer info in sidebar
-st.sidebar.markdown("---")
-volunteer_name = st.sidebar.text_input("Volunteer Name", value=st.session_state.volunteer_name)
-if volunteer_name != st.session_state.volunteer_name:
-    st.session_state.volunteer_name = volunteer_name
-    st.sidebar.success("Volunteer name updated!")
-
-if st.sidebar.button("Sync Data"):
-    st.sidebar.success("Data synchronized successfully!")
-
-# Main content area
-if tab == "Home":
-    st.title("District 6 Door Knocking Campaign")
-    
-    # Precinct selector
-    precincts = get_district6_precincts()
-    precinct_options = ["Select a precinct"] + [f"Precinct {p['id']}" for p in precincts]
-    selected_option = st.selectbox("Select Precinct:", precinct_options)
-    
-    if selected_option != "Select a precinct":
-        # Extract precinct ID from selection
-        precinct_id = selected_option.split()[1]
-        
-        # Find the selected precinct
-        selected_precinct_data = next((p for p in precincts if p['id'] == precinct_id), None)
-        
-        # Display precinct info
-        if selected_precinct_data:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Registered Voters", selected_precinct_data['total_addresses'])
-            with col2:
-                st.metric("Voter Turnout", selected_precinct_data['turnout'])
-        
-        # Get addresses for this precinct
+# Group addresses by building/neighborhood
+def group_addresses():
+    if st.session_state.selected_precinct:
+        precinct_id = st.session_state.selected_precinct
         addresses = st.session_state.precinct_addresses.get(precinct_id, [])
         
-        # Display addresses
-        if addresses:
-            st.subheader("Addresses to Visit")
-            
-            # Display number of addresses found
-            st.info(f"Found {len(addresses)} addresses in Precinct {precinct_id}")
-            
-            # Search functionality
-            search_query = st.text_input("Search addresses by name, street, or number:", value=st.session_state.search_query)
-            if search_query != st.session_state.search_query:
-                st.session_state.search_query = search_query
-            
-            # Filter addresses by search query if provided
-            filtered_addresses = addresses
-            if search_query:
-                search_query = search_query.lower()
-                filtered_addresses = []
-                for address in addresses:
-                    # Check if search query matches any part of the address
-                    owner1 = str(address.get('owner1', '')).lower()
-                    owner2 = str(address.get('owner2', '')).lower()
-                    addr = str(address.get('address', '')).lower()
-                    city_zip = str(address.get('city_zip', '')).lower()
-                    prop_type = str(address.get('property_type', '')).lower()
-                    
-                    if (search_query in owner1 or
-                        search_query in owner2 or
-                        search_query in addr or
-                        search_query in city_zip or
-                        search_query in prop_type):
-                        filtered_addresses.append(address)
-            
-            # Highlight if Ariel's address is found
-            ariel_found = False
-            for address in filtered_addresses:
-                owner1 = str(address.get('owner1', ''))
-                if "FERNANDEZ, ARIEL" in owner1:
-                    ariel_found = True
-                    st.success("✅ Ariel Fernandez's address found in this precinct!")
-                    break
-            
-            # Map view of addresses
-            if filtered_addresses:
-                st.subheader("Map View")
-                
-                # Map view options
-                map_col1, map_col2 = st.columns([1, 3])
-                with map_col1:
-                    cluster_view = st.checkbox("Group Addresses", value=st.session_state.cluster_view)
-                    if cluster_view != st.session_state.cluster_view:
-                        st.session_state.cluster_view = cluster_view
-                        st.session_state.selected_cluster = None
-                
-                # Create map data based on view mode
-                if st.session_state.cluster_view:
-                    # Cluster addresses using simple clustering
-                    clusters = simple_cluster_addresses(filtered_addresses)
-                    
-                    # Check if a cluster is selected
-                    if st.session_state.selected_cluster:
-                        # Find the selected cluster
-                        selected_cluster = next((c for c in clusters if c['id'] == st.session_state.selected_cluster), None)
-                        
-                        if selected_cluster:
-                            # Show only the selected cluster's addresses
-                            with map_col2:
-                                st.write(f"**Selected: {selected_cluster['label']}**")
-                                if st.button("Back to All Clusters"):
-                                    st.session_state.selected_cluster = None
-                                    st.rerun()
-                            
-                            # Create map data for individual addresses in the cluster
-                            map_data = pd.DataFrame({
-                                'lat': [a['lat'] for a in selected_cluster['addresses']],
-                                'lon': [a['lon'] for a in selected_cluster['addresses']]
-                            })
-                            
-                            # Display the map
-                            st.map(map_data)
-                            
-                            # Show addresses in this cluster
-                            st.subheader(f"Addresses in {selected_cluster['label']}")
-                            
-                            # Group addresses by building/street
-                            if selected_cluster['address_count'] > 1:
-                                # Sort addresses by street number and unit
-                                sorted_addresses = sorted(
-                                    selected_cluster['addresses'],
-                                    key=lambda a: (a['street_num'], a.get('unit', ''))
-                                )
-                                
-                                # Display addresses in a more compact format
-                                for address in sorted_addresses:
-                                    with st.container():
-                                        col1, col2 = st.columns([3, 1])
-                                        with col1:
-                                            owner = f"{address.get('owner1', 'Unknown')} {address.get('owner2', '')}"
-                                            address_text = f"{address.get('address', '')}"
-                                            property_type = address.get('property_type', 'Residential')
-                                            st.markdown(f"**{owner}**")
-                                            st.text(address_text)
-                                            st.text(f"Type: {property_type}")
-                                        
-                                        with col2:
-                                            address_id = address.get('id', '')
-                                            visited = address_id in st.session_state.visited_addresses
-                                            
-                                            if not visited:
-                                                if st.button("Contact", key=f"contact_cluster_{address_id}"):
-                                                    # Open contact dialog
-                                                    st.session_state.current_contact_address = address
-                                                    st.rerun()
-                                            else:
-                                                st.success("Visited")
-                                                # Show support level if recorded
-                                                if address_id in st.session_state.support_levels:
-                                                    support = st.session_state.support_levels[address_id]
-                                                    st.info(f"Support: {support}")
-                                        
-                                        st.markdown("---")
-                        else:
-                            # Cluster not found, reset selection
-                            st.session_state.selected_cluster = None
-                            st.rerun()
-                    else:
-                        # Show all clusters
-                        # Create map data for clusters
-                        map_data = pd.DataFrame({
-                            'lat': [c['lat'] for c in clusters],
-                            'lon': [c['lon'] for c in clusters]
-                        })
-                        
-                        # Display the map
-                        st.map(map_data)
-                        
-                        # Display cluster information
-                        st.subheader("Address Clusters")
-                        
-                        # Group clusters by type
-                        buildings = [c for c in clusters if c['type'] == 'building']
-                        neighborhoods = [c for c in clusters if c['type'] == 'neighborhood']
-                        singles = [c for c in clusters if c['type'] == 'single']
-                        
-                        # Create tabs for different types of clusters
-                        cluster_tabs = st.tabs(["Buildings", "Neighborhoods", "Single Addresses"])
-                        
-                        with cluster_tabs[0]:
-                            if buildings:
-                                st.write(f"**{len(buildings)} Buildings with Multiple Units**")
-                                for cluster in sorted(buildings, key=lambda c: c['address_count'], reverse=True):
-                                    with st.container():
-                                        col1, col2 = st.columns([3, 1])
-                                        with col1:
-                                            st.markdown(f"**{cluster['label']}**")
-                                            sample_address = cluster['addresses'][0]
-                                            st.text(f"{sample_address['street_num']} {sample_address['street_name']}")
-                                        
-                                        with col2:
-                                            if st.button("View Details", key=f"view_{cluster['id']}"):
-                                                st.session_state.selected_cluster = cluster['id']
-                                                st.rerun()
-                                        
-                                        st.markdown("---")
-                            else:
-                                st.info("No multi-unit buildings found in this precinct.")
-                        
-                        with cluster_tabs[1]:
-                            if neighborhoods:
-                                st.write(f"**{len(neighborhoods)} Neighborhood Clusters**")
-                                for cluster in sorted(neighborhoods, key=lambda c: c['address_count'], reverse=True):
-                                    with st.container():
-                                        col1, col2 = st.columns([3, 1])
-                                        with col1:
-                                            st.markdown(f"**{cluster['label']}**")
-                                            streets = set([f"{a['street_name']}" for a in cluster['addresses']])
-                                            st.text(f"Streets: {', '.join(list(streets)[:3])}{' and more' if len(streets) > 3 else ''}")
-                                        
-                                        with col2:
-                                            if st.button("View Details", key=f"view_{cluster['id']}"):
-                                                st.session_state.selected_cluster = cluster['id']
-                                                st.rerun()
-                                        
-                                        st.markdown("---")
-                            else:
-                                st.info("No neighborhood clusters found in this precinct.")
-                        
-                        with cluster_tabs[2]:
-                            if singles:
-                                st.write(f"**{len(singles)} Individual Addresses**")
-                                for cluster in singles:
-                                    with st.container():
-                                        col1, col2 = st.columns([3, 1])
-                                        with col1:
-                                            address = cluster['addresses'][0]
-                                            owner = f"{address.get('owner1', 'Unknown')} {address.get('owner2', '')}"
-                                            address_text = f"{address.get('address', '')}"
-                                            property_type = address.get('property_type', 'Residential')
-                                            st.markdown(f"**{owner}**")
-                                            st.text(address_text)
-                                            st.text(f"Type: {property_type}")
-                                        
-                                        with col2:
-                                            if st.button("View Details", key=f"view_{cluster['id']}"):
-                                                st.session_state.selected_cluster = cluster['id']
-                                                st.rerun()
-                                        
-                                        st.markdown("---")
-                            else:
-                                st.info("No individual addresses found in this precinct.")
-                else:
-                    # Show all addresses individually
-                    map_data = pd.DataFrame({
-                        'lat': [a.get('lat', 0) for a in filtered_addresses],
-                        'lon': [a.get('lon', 0) for a in filtered_addresses]
-                    })
-                    
-                    # Display the map
-                    st.map(map_data)
-            
-            # Progress tracking
-            total_addresses = len(filtered_addresses)
-            visited_count = len([a for a in filtered_addresses if a['id'] in st.session_state.visited_addresses])
-            remaining_count = total_addresses - visited_count
-            percentage = (visited_count / total_addresses * 100) if total_addresses > 0 else 0
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Progress", f"{visited_count}/{total_addresses} ({percentage:.1f}%)")
-            with col2:
-                st.metric("Remaining", remaining_count)
-            
-            st.progress(percentage / 100)
-            
-            # Filter options
-            st.subheader("Filter Options")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                show_visited = st.checkbox("Show Visited", value=True)
-            with col2:
-                show_not_visited = st.checkbox("Show Not Visited", value=True)
-            with col3:
-                property_types = ["All", "Residential", "Business"]
-                property_filter = st.selectbox("Property Type", property_types)
-            
-            # Apply filters
-            if not show_visited:
-                filtered_addresses = [a for a in filtered_addresses if a['id'] not in st.session_state.visited_addresses]
-            if not show_not_visited:
-                filtered_addresses = [a for a in filtered_addresses if a['id'] in st.session_state.visited_addresses]
-            if property_filter != "All":
-                filtered_addresses = [a for a in filtered_addresses if a.get('property_type', 'Residential') == property_filter]
-            
-            # Only show individual address list if not in cluster view or if a cluster is selected
-            if not st.session_state.cluster_view or st.session_state.selected_cluster:
-                # Pagination for addresses
-                addresses_per_page = 10
-                total_pages = (len(filtered_addresses) + addresses_per_page - 1) // addresses_per_page
-                
-                if total_pages > 1:
-                    col1, col2, col3 = st.columns([1, 2, 1])
-                    with col2:
-                        page = st.slider("Page", 1, max(1, total_pages), 1)
-                        start_idx = (page - 1) * addresses_per_page
-                        end_idx = min(start_idx + addresses_per_page, len(filtered_addresses))
-                        st.write(f"Showing addresses {start_idx + 1}-{end_idx} of {len(filtered_addresses)}")
-                else:
-                    page = 1
-                    start_idx = 0
-                    end_idx = len(filtered_addresses)
-                
-                # Address list
-                for i, address in enumerate(filtered_addresses[start_idx:end_idx]):
-                    address_id = address.get('id', i)
-                    visited = address_id in st.session_state.visited_addresses
-                    
-                    # Safely check if this is Ariel's address
-                    owner1 = str(address.get('owner1', ''))
-                    is_ariel = "FERNANDEZ, ARIEL" in owner1
-                    
-                    # Create a card-like container for each address
-                    with st.container():
-                        if is_ariel:
-                            st.markdown("---")
-                            st.markdown("### 🌟 YOUR ADDRESS 🌟")
-                        
-                        col1, col2 = st.columns([3, 1])
-                        
-                        with col1:
-                            owner = f"{address.get('owner1', 'Unknown')} {address.get('owner2', '')}"
-                            address_text = f"{address.get('address', '')}, {address.get('city_zip', '')}"
-                            property_type = address.get('property_type', 'Residential')
-                            
-                            if is_ariel:
-                                st.markdown(f"**👤 {owner}**")
-                                st.markdown(f"**🏠 {address_text}**")
-                                st.markdown(f"**🏘️ {property_type}**")
-                            else:
-                                st.markdown(f"**{owner}**")
-                                st.text(address_text)
-                                st.text(f"Type: {property_type}")
-                        
-                        with col2:
-                            if not visited:
-                                if st.button("Contact", key=f"contact_{address_id}"):
-                                    # Open contact dialog
-                                    st.session_state.current_contact_address = address
-                                    st.rerun()
-                                
-                                if st.button("Not Home", key=f"nothome_{address_id}"):
-                                    st.session_state.visited_addresses.add(address_id)
-                                    st.session_state.interaction_notes[address_id] = "Not home during visit."
-                                    st.success("Marked as Not Home")
-                                    st.rerun()
-                                
-                                if st.button("Skip", key=f"skip_{address_id}"):
-                                    st.session_state.visited_addresses.add(address_id)
-                                    st.session_state.interaction_notes[address_id] = "Skipped during canvassing."
-                                    st.success("Marked as Skipped")
-                                    st.rerun()
-                            else:
-                                st.success("Visited")
-                                # Show support level if recorded
-                                if address_id in st.session_state.support_levels:
-                                    support = st.session_state.support_levels[address_id]
-                                    st.info(f"Support: {support}")
-                                
-                                # Show donation if recorded
-                                if address_id in st.session_state.donations and st.session_state.donations[address_id] > 0:
-                                    donation = st.session_state.donations[address_id]
-                                    st.success(f"Donation: ${donation}")
-                                
-                                # View notes button
-                                if address_id in st.session_state.interaction_notes:
-                                    if st.button("View Notes", key=f"view_notes_{address_id}"):
-                                        st.session_state.current_contact_address = address
-                                        st.rerun()
-                        
-                        if is_ariel:
-                            st.markdown("---")
-                        else:
-                            st.markdown("---")
-                
-                # Pagination controls
-                if total_pages > 1:
-                    col1, col2, col3 = st.columns([1, 2, 1])
-                    with col2:
-                        st.write(f"Page {page} of {total_pages}")
-                        prev, next = st.columns(2)
-                        if prev.button("Previous Page", disabled=(page == 1)):
-                            new_page = max(1, page - 1)
-                            st.experimental_set_query_params(page=new_page)
-                            st.rerun()
-                        if next.button("Next Page", disabled=(page == total_pages)):
-                            new_page = min(total_pages, page + 1)
-                            st.experimental_set_query_params(page=new_page)
-                            st.rerun()
-        else:
-            st.warning(f"No addresses found for Precinct {precinct_id}. Please try another precinct or check your data file.")
-    else:
-        st.info("Please select a precinct to begin canvassing")
+        # Dictionary to store buildings and their addresses
+        buildings = defaultdict(list)
+        
+        # Group addresses by building
+        for address in addresses:
+            # For multi-unit buildings (condos, apartments)
+            if 'BUILDING_NAME' in address:
+                building_key = f"{address.get('STR_NUM')}-{address.get('STR_NAME')}-{address.get('BUILDING_NAME')}"
+                buildings[building_key].append(address)
+            # For single-family homes, group by street
+            else:
+                street_key = f"{address.get('STR_NAME')}-HOMES"
+                buildings[street_key].append(address)
+        
+        # Sort buildings by number of addresses (descending)
+        sorted_buildings = sorted(buildings.items(), key=lambda x: len(x[1]), reverse=True)
+        
+        return sorted_buildings
+    return []
+
+# Generate search suggestions based on partial input
+def generate_search_suggestions(addresses, partial_query):
+    if not partial_query or len(partial_query) < 2:
+        return []
     
-    # Contact dialog
-    if hasattr(st.session_state, 'current_contact_address') and st.session_state.current_contact_address:
-        address = st.session_state.current_contact_address
-        address_id = address.get('id', '')
+    suggestions = set()
+    partial_query = partial_query.lower()
+    
+    for address in addresses:
+        # Check owner names
+        owner1 = str(address.get('OWNER1', '')).lower()
+        if partial_query in owner1:
+            suggestions.add(address.get('OWNER1', ''))
         
-        st.markdown("---")
-        st.subheader("Contact Information")
+        owner2 = str(address.get('OWNER2', '')).lower()
+        if owner2 and partial_query in owner2:
+            suggestions.add(address.get('OWNER2', ''))
         
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            owner = f"{address.get('owner1', 'Unknown')} {address.get('owner2', '')}"
-            address_text = f"{address.get('address', '')}, {address.get('city_zip', '')}"
-            property_type = address.get('property_type', 'Residential')
+        # Check street address
+        street_address = str(address.get('SITE_ADDRESS', '')).lower()
+        if partial_query in street_address:
+            suggestions.add(address.get('SITE_ADDRESS', ''))
+        
+        # Check street name
+        street_name = str(address.get('STR_NAME', '')).lower()
+        if partial_query in street_name:
+            suggestions.add(address.get('STR_NAME', ''))
+    
+    # Convert to list and sort
+    suggestion_list = sorted(list(suggestions))
+    
+    # Limit to top 10 suggestions
+    return suggestion_list[:10]
+
+# Filter addresses based on search query and filters
+def filter_addresses(addresses, search_query="", show_visited=True, show_not_visited=True, property_type="All", geographic_section="All"):
+    filtered = []
+    
+    for address in addresses:
+        # Check if address has been visited
+        address_key = address.get('PARCEL_NUMBER', '')
+        is_visited = address_key in st.session_state.visited_addresses
+        
+        # Skip if we're not showing visited addresses and this one has been visited
+        if not show_visited and is_visited:
+            continue
+        
+        # Skip if we're not showing unvisited addresses and this one hasn't been visited
+        if not show_not_visited and not is_visited:
+            continue
+        
+        # Filter by property type
+        if property_type != "All":
+            address_property_type = address.get('PROPERTY_USE', '')
+            if property_type == "Residential" and address_property_type != "Residential":
+                continue
+            if property_type == "Business" and address_property_type != "Business":
+                continue
+        
+        # Filter by geographic section
+        if geographic_section != "All":
+            address_section = address.get('SECTION', '')
+            if geographic_section != address_section:
+                continue
+        
+        # Filter by search query
+        if search_query:
+            query = search_query.lower()
+            owner1 = str(address.get('OWNER1', '')).lower()
+            owner2 = str(address.get('OWNER2', '')).lower()
+            addr = str(address.get('SITE_ADDRESS', '')).lower()
+            city_zip = str(address.get('SITE_CITYZIP', '')).lower()
             
-            st.markdown(f"**{owner}**")
-            st.text(address_text)
-            st.text(f"Type: {property_type}")
+            if (query in owner1 or query in owner2 or 
+                query in addr or query in city_zip):
+                filtered.append(address)
+        else:
+            filtered.append(address)
+    
+    return filtered
+
+# Get support level label
+def get_support_level_label(level):
+    levels = {
+        "strong_support": "Strong Support",
+        "lean_support": "Lean Support",
+        "undecided": "Undecided",
+        "lean_against": "Lean Against",
+        "strong_against": "Strong Against",
+        "unknown": "Unknown"
+    }
+    return levels.get(level, "Unknown")
+
+# Get support level color
+def get_support_level_color(level):
+    colors = {
+        "strong_support": "darkgreen",
+        "lean_support": "lightgreen",
+        "undecided": "gray",
+        "lean_against": "orange",
+        "strong_against": "red",
+        "unknown": "lightgray"
+    }
+    return colors.get(level, "lightgray")
+
+# Get user's current location
+def get_user_location():
+    st.markdown("""
+    <script>
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            const data = {
+                lat: lat,
+                lon: lon
+            };
+            window.parent.postMessage({
+                type: "streamlit:setComponentValue",
+                value: JSON.stringify(data)
+            }, "*");
+        },
+        (error) => {
+            console.error("Error getting location:", error);
+        }
+    );
+    </script>
+    """, unsafe_allow_html=True)
+
+# Main app layout
+if st.session_state.current_page == "home":
+    # Organize addresses by precinct if not already done
+    organize_addresses_by_precinct()
+    
+    # Main content area
+    st.title("District 6 Canvassing App")
+    
+    # Display JSON load error if any
+    if st.session_state.json_load_error:
+        st.error(f"Error loading address data: {st.session_state.json_load_error}")
+        st.info("Using fallback data or sample addresses. You can upload a properly formatted JSON file using the uploader in the sidebar.")
+    
+    # Geographic section selection
+    col1, col2, col3 = st.columns([2, 2, 1])
+    
+    with col1:
+        # Geographic section selection
+        section_options = ["All", "North", "South", "East", "West"]
+        st.session_state.geographic_section = st.selectbox(
+            "Select Geographic Section:", 
+            section_options, 
+            index=section_options.index(st.session_state.geographic_section)
+        )
+    
+    with col2:
+        # Precinct selection based on geographic section
+        precincts = get_district6_precincts()
         
-        with col2:
-            if st.button("Close"):
-                del st.session_state.current_contact_address
-                st.rerun()
+        # Filter precincts by selected geographic section
+        if st.session_state.geographic_section != "All":
+            filtered_precincts = [p for p in precincts if p['section'] == st.session_state.geographic_section]
+        else:
+            filtered_precincts = precincts
         
-        # Support level
-        st.subheader("Voter Support Level")
-        support_options = ["Strong Support", "Leaning Support", "Undecided", "Leaning Against", "Strong Against", "Refused"]
-        current_support = st.session_state.support_levels.get(address_id, "")
-        support = st.radio("Support Level:", support_options, index=support_options.index(current_support) if current_support in support_options else 2)
+        precinct_options = [f"{p['name']} ({len(st.session_state.precinct_addresses.get(p['id'], []))} addresses)" for p in filtered_precincts]
         
-        # Donation
-        st.subheader("Donation Information")
-        current_donation = st.session_state.donations.get(address_id, 0)
-        donation = st.number_input("Donation Amount ($):", min_value=0.0, value=float(current_donation), step=5.0)
+        if precinct_options:
+            selected_index = 0
+            if st.session_state.selected_precinct:
+                for i, p in enumerate(filtered_precincts):
+                    if p['id'] == st.session_state.selected_precinct:
+                        selected_index = i
+                        break
+            
+            selected_precinct_display = st.selectbox("Select Precinct:", precinct_options, index=min(selected_index, len(precinct_options)-1))
+            selected_precinct_index = precinct_options.index(selected_precinct_display)
+            st.session_state.selected_precinct = filtered_precincts[selected_precinct_index]['id']
+        else:
+            st.warning(f"No precincts found in the {st.session_state.geographic_section} section.")
+            st.session_state.selected_precinct = None
+    
+    with col3:
+        # Volunteer name input
+        st.session_state.volunteer_name = st.text_input("Volunteer Name:", value=st.session_state.volunteer_name)
+    
+    # Location finder
+    st.subheader("Location Finder")
+    col1, col2 = st.columns([1, 3])
+    
+    with col1:
+        if st.button("📍 Find My Location"):
+            # In a real app, this would use the browser's geolocation API
+            # For demonstration, we'll use a placeholder
+            st.session_state.user_location = {
+                "lat": 27.773056,  # St. Petersburg latitude
+                "lon": -82.639999  # St. Petersburg longitude
+            }
+            st.success("Location found! Map updated to show your current position.")
+    
+    with col2:
+        if st.session_state.user_location:
+            st.write(f"Your current location: {st.session_state.user_location['lat']:.6f}, {st.session_state.user_location['lon']:.6f}")
+            st.write("The map below will show nearby addresses.")
+        else:
+            st.write("Click 'Find My Location' to see your position on the map and find nearby addresses.")
+    
+    # Display precinct information
+    if st.session_state.selected_precinct:
+        precinct_id = st.session_state.selected_precinct
+        precinct_info = next((p for p in precincts if p['id'] == precinct_id), None)
         
-        # Notes
-        st.subheader("Interaction Notes")
-        current_notes = st.session_state.interaction_notes.get(address_id, "")
-        notes = st.text_area("Notes:", value=current_notes, height=100)
+        if precinct_info:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("Registered Voters", precinct_info['total_addresses'])
+            
+            with col2:
+                st.metric("Turnout", precinct_info['turnout'])
+            
+            with col3:
+                # Count visited addresses in this precinct
+                precinct_addresses = st.session_state.precinct_addresses.get(precinct_id, [])
+                visited_count = sum(1 for addr in precinct_addresses if addr.get('PARCEL_NUMBER', '') in st.session_state.visited_addresses)
+                st.metric("Addresses Visited", f"{visited_count}/{len(precinct_addresses)}")
+            
+            with col4:
+                st.metric("Geographic Section", precinct_info['section'])
         
-        # Tags
-        st.subheader("Quick Tags")
-        col1, col2, col3, col4 = st.columns(4)
-        tag_options = ["Interested in Yard Sign", "Wants More Info", "Willing to Volunteer", "Needs Follow-up"]
+        # Get addresses for the selected precinct
+        precinct_addresses = st.session_state.precinct_addresses.get(precinct_id, [])
         
-        # Extract existing tags from notes
-        existing_tags = []
-        for tag in tag_options:
-            if tag in current_notes:
-                existing_tags.append(tag)
+        # Search and filter options
+        col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
         
-        # Display tag checkboxes
-        selected_tags = []
         with col1:
-            if st.checkbox(tag_options[0], value=tag_options[0] in existing_tags):
-                selected_tags.append(tag_options[0])
+            # Predictive search with autocomplete
+            search_query = st.text_input("Search by name or address:", value=st.session_state.search_query)
+            
+            # Generate suggestions based on partial input
+            if search_query and len(search_query) >= 2 and search_query != st.session_state.search_query:
+                st.session_state.search_suggestions = generate_search_suggestions(precinct_addresses, search_query)
+            
+            # Display suggestions if available
+            if st.session_state.search_suggestions and search_query:
+                suggestion_container = st.container()
+                with suggestion_container:
+                    st.markdown("### Suggestions:")
+                    for suggestion in st.session_state.search_suggestions:
+                        if st.button(f"🔍 {suggestion}", key=f"suggestion_{suggestion}"):
+                            search_query = suggestion
+                            st.session_state.search_query = suggestion
+                            st.rerun()
+            
+            st.session_state.search_query = search_query
+        
         with col2:
-            if st.checkbox(tag_options[1], value=tag_options[1] in existing_tags):
-                selected_tags.append(tag_options[1])
+            show_visited = st.checkbox("Show Visited", value=True)
+        
         with col3:
-            if st.checkbox(tag_options[2], value=tag_options[2] in existing_tags):
-                selected_tags.append(tag_options[2])
+            show_not_visited = st.checkbox("Show Not Visited", value=True)
+        
         with col4:
-            if st.checkbox(tag_options[3], value=tag_options[3] in existing_tags):
-                selected_tags.append(tag_options[3])
+            property_type = st.selectbox("Property Type:", ["All", "Residential", "Business"])
+        
+        # Toggle between clustered and individual view
+        st.session_state.cluster_view = st.checkbox("Group addresses by building/neighborhood", value=st.session_state.cluster_view)
+        
+        # Filter addresses based on search and filters
+        filtered_addresses = filter_addresses(
+            precinct_addresses, 
+            search_query=search_query,
+            show_visited=show_visited,
+            show_not_visited=show_not_visited,
+            property_type=property_type,
+            geographic_section=st.session_state.geographic_section
+        )
+        
+        # Display map of addresses
+        if filtered_addresses:
+            st.subheader("Map View")
+            
+            # Extract coordinates for map
+            map_data = []
+            for address in filtered_addresses:
+                # Use the LAT and LON fields we added during processing
+                lat = address.get('LAT')
+                lon = address.get('LON')
+                
+                if lat and lon:
+                    map_data.append({
+                        "lat": lat, 
+                        "lon": lon,
+                        "name": address.get('OWNER1', ''),
+                        "address": address.get('SITE_ADDRESS', '')
+                    })
+            
+            # Add user's location to the map if available
+            if st.session_state.user_location:
+                map_data.append({
+                    "lat": st.session_state.user_location["lat"],
+                    "lon": st.session_state.user_location["lon"],
+                    "name": "YOUR LOCATION",
+                    "address": "You are here"
+                })
+            
+            # Convert to DataFrame for Streamlit's map
+            if map_data:
+                map_df = pd.DataFrame(map_data)
+                st.map(map_df)
+            else:
+                st.warning("No map data available for these addresses.")
+        
+        # Display addresses
+        if filtered_addresses:
+            st.subheader("Address List")
+            
+            if st.session_state.cluster_view:
+                # Group addresses by building/neighborhood using simple method
+                if len(filtered_addresses) > 0:
+                    # First try to group by building name if available
+                    buildings = defaultdict(list)
+                    
+                    # Group addresses by building
+                    for address in filtered_addresses:
+                        # For multi-unit buildings (condos, apartments)
+                        if 'BUILDING_NAME' in address:
+                            building_key = f"{address.get('STR_NUM')}-{address.get('STR_NAME')}-{address.get('BUILDING_NAME')}"
+                            buildings[building_key].append(address)
+                        # For single-family homes, group by street
+                        else:
+                            street_key = f"{address.get('STR_NAME')}-HOMES"
+                            buildings[street_key].append(address)
+                    
+                    # Sort buildings by number of addresses (descending)
+                    sorted_buildings = sorted(buildings.items(), key=lambda x: len(x[1]), reverse=True)
+                else:
+                    sorted_buildings = []
+                
+                # Display buildings
+                for building_key, building_addresses in sorted_buildings:
+                    # Extract building name or street name
+                    if "-HOMES" in building_key:
+                        street_name = building_key.split("-HOMES")[0]
+                        building_display = f"{street_name} Street ({len(building_addresses)} homes)"
+                        is_building = False
+                    else:
+                        building_name = building_addresses[0].get('BUILDING_NAME', 'Building')
+                        building_display = f"{building_name} ({len(building_addresses)} units)"
+                        is_building = True
+                    
+                    # Create an expander for each building
+                    with st.expander(building_display):
+                        # Display addresses in this building
+                        for i, address in enumerate(building_addresses):
+                            address_key = address.get('PARCEL_NUMBER', '')
+                            is_visited = address_key in st.session_state.visited_addresses
+                            
+                            # Get support level if available
+                            support_level = st.session_state.support_levels.get(address_key, "unknown")
+                            support_label = get_support_level_label(support_level)
+                            support_color = get_support_level_color(support_level)
+                            
+                            # Check if this is Ariel's address
+                            is_ariel = False
+                            owner1 = str(address.get('OWNER1', ''))
+                            if "FERNANDEZ, ARIEL" in owner1:
+                                is_ariel = True
+                            
+                            # Create a card-like display for each address
+                            col1, col2, col3 = st.columns([3, 1, 1])
+                            
+                            with col1:
+                                # Format address display
+                                site_address = address.get('SITE_ADDRESS', '')
+                                site_cityzip = address.get('SITE_CITYZIP', '')
+                                owner1 = address.get('OWNER1', '')
+                                owner2 = address.get('OWNER2', '')
+                                section = address.get('SECTION', '')
+                                
+                                # Highlight Ariel's address
+                                if is_ariel:
+                                    st.markdown(f"⭐ **{owner1}** ⭐")
+                                    st.markdown(f"**{site_address}**  \n{site_cityzip}")
+                                    st.markdown(f"Section: {section}")
+                                else:
+                                    st.markdown(f"**{owner1}**{' & ' + owner2 if owner2 else ''}")
+                                    st.markdown(f"{site_address}  \n{site_cityzip}")
+                                    st.markdown(f"Section: {section}")
+                                
+                                # Show property type
+                                property_use = address.get('PROPERTY_USE', '')
+                                st.markdown(f"*{property_use}*")
+                                
+                                # Show support level if available
+                                if support_level != "unknown":
+                                    st.markdown(f"Support Level: <span style='color:{support_color};font-weight:bold'>{support_label}</span>", unsafe_allow_html=True)
+                                
+                                # Show donation amount if available
+                                donation = st.session_state.donations.get(address_key, 0)
+                                if donation > 0:
+                                    st.markdown(f"Donation: **${donation:.2f}**")
+                            
+                            with col2:
+                                # Contact button
+                                if st.button(f"Contact {i}", key=f"contact_{address_key}"):
+                                    navigate_to("contact", address)
+                            
+                            with col3:
+                                # Mark as visited/not visited
+                                if is_visited:
+                                    if st.button(f"✓ Visited {i}", key=f"visited_{address_key}"):
+                                        st.session_state.visited_addresses.remove(address_key)
+                                        st.rerun()
+                                else:
+                                    col3a, col3b = st.columns(2)
+                                    with col3a:
+                                        if st.button(f"Not Home {i}", key=f"nothome_{address_key}"):
+                                            st.session_state.visited_addresses.add(address_key)
+                                            st.session_state.interaction_notes[address_key] = "Not home"
+                                            st.rerun()
+                                    with col3b:
+                                        if st.button(f"Skip {i}", key=f"skip_{address_key}"):
+                                            st.session_state.visited_addresses.add(address_key)
+                                            st.session_state.interaction_notes[address_key] = "Skipped"
+                                            st.rerun()
+                            
+                            st.markdown("---")
+            else:
+                # Display individual addresses
+                for i, address in enumerate(filtered_addresses):
+                    address_key = address.get('PARCEL_NUMBER', '')
+                    is_visited = address_key in st.session_state.visited_addresses
+                    
+                    # Get support level if available
+                    support_level = st.session_state.support_levels.get(address_key, "unknown")
+                    support_label = get_support_level_label(support_level)
+                    support_color = get_support_level_color(support_level)
+                    
+                    # Check if this is Ariel's address
+                    is_ariel = False
+                    owner1 = str(address.get('OWNER1', ''))
+                    if "FERNANDEZ, ARIEL" in owner1:
+                        is_ariel = True
+                    
+                    # Create a card-like display for each address
+                    col1, col2, col3 = st.columns([3, 1, 1])
+                    
+                    with col1:
+                        # Format address display
+                        site_address = address.get('SITE_ADDRESS', '')
+                        site_cityzip = address.get('SITE_CITYZIP', '')
+                        owner1 = address.get('OWNER1', '')
+                        owner2 = address.get('OWNER2', '')
+                        section = address.get('SECTION', '')
+                        
+                        # Highlight Ariel's address
+                        if is_ariel:
+                            st.markdown(f"⭐ **{owner1}** ⭐")
+                            st.markdown(f"**{site_address}**  \n{site_cityzip}")
+                            st.markdown(f"Section: {section}")
+                        else:
+                            st.markdown(f"**{owner1}**{' & ' + owner2 if owner2 else ''}")
+                            st.markdown(f"{site_address}  \n{site_cityzip}")
+                            st.markdown(f"Section: {section}")
+                        
+                        # Show property type
+                        property_use = address.get('PROPERTY_USE', '')
+                        st.markdown(f"*{property_use}*")
+                        
+                        # Show support level if available
+                        if support_level != "unknown":
+                            st.markdown(f"Support Level: <span style='color:{support_color};font-weight:bold'>{support_label}</span>", unsafe_allow_html=True)
+                        
+                        # Show donation amount if available
+                        donation = st.session_state.donations.get(address_key, 0)
+                        if donation > 0:
+                            st.markdown(f"Donation: **${donation:.2f}**")
+                    
+                    with col2:
+                        # Contact button
+                        if st.button(f"Contact {i}", key=f"contact_{address_key}"):
+                            navigate_to("contact", address)
+                    
+                    with col3:
+                        # Mark as visited/not visited
+                        if is_visited:
+                            if st.button(f"✓ Visited {i}", key=f"visited_{address_key}"):
+                                st.session_state.visited_addresses.remove(address_key)
+                                st.rerun()
+                        else:
+                            col3a, col3b = st.columns(2)
+                            with col3a:
+                                if st.button(f"Not Home {i}", key=f"nothome_{address_key}"):
+                                    st.session_state.visited_addresses.add(address_key)
+                                    st.session_state.interaction_notes[address_key] = "Not home"
+                                    st.rerun()
+                            with col3b:
+                                if st.button(f"Skip {i}", key=f"skip_{address_key}"):
+                                    st.session_state.visited_addresses.add(address_key)
+                                    st.session_state.interaction_notes[address_key] = "Skipped"
+                                    st.rerun()
+                    
+                    st.markdown("---")
+        else:
+            st.warning("No addresses found matching your criteria.")
+
+elif st.session_state.current_page == "contact":
+    # Contact page for recording interactions
+    st.title("Contact Information")
+    
+    if st.session_state.contact_address:
+        address = st.session_state.contact_address
+        address_key = address.get('PARCEL_NUMBER', '')
+        
+        # Display address information
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            # Format address display
+            site_address = address.get('SITE_ADDRESS', '')
+            site_cityzip = address.get('SITE_CITYZIP', '')
+            owner1 = address.get('OWNER1', '')
+            owner2 = address.get('OWNER2', '')
+            section = address.get('SECTION', '')
+            
+            st.markdown(f"## {owner1}{' & ' + owner2 if owner2 else ''}")
+            st.markdown(f"### {site_address}  \n{site_cityzip}")
+            st.markdown(f"Section: {section}")
+            
+            # Show property type
+            property_use = address.get('PROPERTY_USE', '')
+            st.markdown(f"*{property_use}*")
+        
+        with col2:
+            # Back button
+            if st.button("Back to List"):
+                navigate_to("home")
+        
+        # Support level selection
+        st.subheader("Support Level")
+        current_support = st.session_state.support_levels.get(address_key, "unknown")
+        support_options = {
+            "strong_support": "Strong Support",
+            "lean_support": "Lean Support",
+            "undecided": "Undecided",
+            "lean_against": "Lean Against",
+            "strong_against": "Strong Against",
+            "unknown": "Unknown"
+        }
+        
+        support_level = st.radio(
+            "Select support level:",
+            list(support_options.keys()),
+            format_func=lambda x: support_options[x],
+            index=list(support_options.keys()).index(current_support)
+        )
+        
+        # Donation tracking
+        st.subheader("Donation")
+        current_donation = st.session_state.donations.get(address_key, 0)
+        donation_amount = st.number_input("Donation amount ($):", min_value=0.0, value=float(current_donation), step=5.0)
+        
+        # Interaction notes
+        st.subheader("Interaction Notes")
+        current_notes = st.session_state.interaction_notes.get(address_key, "")
+        
+        # Quick tags
+        st.markdown("Quick Tags:")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            if st.button("👍 Supportive"):
+                current_notes += " [Supportive]"
+        
+        with col2:
+            if st.button("❓ Needs Info"):
+                current_notes += " [Needs Info]"
+        
+        with col3:
+            if st.button("📞 Call Back"):
+                current_notes += " [Call Back]"
+        
+        with col4:
+            if st.button("🚫 Do Not Contact"):
+                current_notes += " [Do Not Contact]"
+        
+        # Free-form notes
+        notes = st.text_area("Notes:", value=current_notes, height=150)
+        
+        # Follow-up checkbox
+        follow_up = st.checkbox("Flag for follow-up")
         
         # Save button
-        if st.button("Save Interaction"):
-            # Add tags to notes if not already present
-            for tag in selected_tags:
-                if tag not in notes:
-                    if notes:
-                        notes += f"\n[{tag}]"
-                    else:
-                        notes = f"[{tag}]"
+        if st.button("Save Contact Information"):
+            # Save all the information
+            st.session_state.support_levels[address_key] = support_level
+            st.session_state.donations[address_key] = donation_amount
+            st.session_state.interaction_notes[address_key] = notes
             
-            # Remove tags that were unchecked
-            for tag in tag_options:
-                if tag not in selected_tags and f"[{tag}]" in notes:
-                    notes = notes.replace(f"[{tag}]", "").strip()
+            # Mark as visited
+            st.session_state.visited_addresses.add(address_key)
             
-            # Save all information
-            st.session_state.visited_addresses.add(address_id)
-            st.session_state.interaction_notes[address_id] = notes
-            st.session_state.support_levels[address_id] = support
-            st.session_state.donations[address_id] = donation
+            # Add follow-up tag if checked
+            if follow_up and "[Follow Up]" not in notes:
+                st.session_state.interaction_notes[address_key] += " [Follow Up]"
             
-            # Close dialog
-            del st.session_state.current_contact_address
-            st.success("Interaction saved successfully!")
-            st.rerun()
-
-elif tab == "Demographics":
-    st.title("Neighborhood Demographics")
-    
-    # Census data
-    census_data = {
-        "33701": {
-            "total_population": 9137,
-            "median_household_income": 67098,
-            "bachelors_degree_or_higher": "54.2%",
-            "employment_rate": "60.3%",
-            "total_housing_units": 6487,
-            "without_health_insurance": "9.2%",
-            "total_households": 4632
-        },
-        "33705": {
-            "total_population": 27915,
-            "median_household_income": 47783,
-            "bachelors_degree_or_higher": "30.2%",
-            "employment_rate": "56.3%",
-            "total_housing_units": 14073,
-            "without_health_insurance": "13.2%",
-            "total_households": 11300
-        }
-    }
-    
-    # Create tabs for each ZIP code
-    zip_tabs = st.tabs(["ZIP 33701", "ZIP 33705", "Compare"])
-    
-    with zip_tabs[0]:
-        st.header("ZIP Code 33701")
-        
-        # Display demographic data
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.metric("Total Population", census_data["33701"]["total_population"])
-            st.metric("Median Household Income", f"${census_data['33701']['median_household_income']:,}")
-            st.metric("Bachelor's Degree or Higher", census_data["33701"]["bachelors_degree_or_higher"])
-            st.metric("Employment Rate", census_data["33701"]["employment_rate"])
-        
-        with col2:
-            st.metric("Total Housing Units", census_data["33701"]["total_housing_units"])
-            st.metric("Without Health Insurance", census_data["33701"]["without_health_insurance"])
-            st.metric("Total Households", census_data["33701"]["total_households"])
-        
-        # Add more detailed demographic information
-        st.subheader("Key Demographics")
-        st.markdown("""
-        ZIP code 33701 covers downtown St. Petersburg and the surrounding areas. Key characteristics include:
-        
-        - Higher median income compared to the city average
-        - Higher education levels with over half of residents having a bachelor's degree or higher
-        - Mix of single-family homes and condominiums
-        - Growing population of young professionals
-        - Significant number of retirees and seasonal residents
-        """)
-        
-        st.subheader("Canvassing Tips for 33701")
-        st.markdown("""
-        - Many residents in this area are well-educated professionals who may respond well to detailed policy discussions
-        - Downtown condos may have security systems requiring advance coordination
-        - Weekday evenings and weekend afternoons tend to have higher contact rates
-        - Many residents are engaged in local issues, particularly downtown development and waterfront access
-        """)
-    
-    with zip_tabs[1]:
-        st.header("ZIP Code 33705")
-        
-        # Display demographic data
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.metric("Total Population", census_data["33705"]["total_population"])
-            st.metric("Median Household Income", f"${census_data['33705']['median_household_income']:,}")
-            st.metric("Bachelor's Degree or Higher", census_data["33705"]["bachelors_degree_or_higher"])
-            st.metric("Employment Rate", census_data["33705"]["employment_rate"])
-        
-        with col2:
-            st.metric("Total Housing Units", census_data["33705"]["total_housing_units"])
-            st.metric("Without Health Insurance", census_data["33705"]["without_health_insurance"])
-            st.metric("Total Households", census_data["33705"]["total_households"])
-        
-        # Add more detailed demographic information
-        st.subheader("Key Demographics")
-        st.markdown("""
-        ZIP code 33705 covers south St. Petersburg. Key characteristics include:
-        
-        - More diverse population compared to 33701
-        - Higher percentage of family households
-        - Mix of older established neighborhoods and areas of new development
-        - Higher percentage of long-term residents
-        - More single-family homes compared to downtown
-        """)
-        
-        st.subheader("Canvassing Tips for 33705")
-        st.markdown("""
-        - Focus on community-oriented messaging and local neighborhood issues
-        - Weekend canvassing often yields better results as more families are home
-        - Many residents have deep roots in the community and care about neighborhood stability
-        - Local schools and community centers are important issues
-        - Higher percentage of residents may need information about voter registration and polling locations
-        """)
-    
-    with zip_tabs[2]:
-        st.header("Demographic Comparison")
-        
-        # Create comparison charts using Streamlit's native charting
-        comparison_data = {
-            "Metric": ["Population", "Median Income ($K)", "Bachelor's+ (%)", "Employment (%)", "Uninsured (%)"],
-            "33701": [
-                census_data["33701"]["total_population"],
-                census_data["33701"]["median_household_income"]/1000,
-                float(census_data["33701"]["bachelors_degree_or_higher"].replace("%", "")),
-                float(census_data["33701"]["employment_rate"].replace("%", "")),
-                float(census_data["33701"]["without_health_insurance"].replace("%", ""))
-            ],
-            "33705": [
-                census_data["33705"]["total_population"],
-                census_data["33705"]["median_household_income"]/1000,
-                float(census_data["33705"]["bachelors_degree_or_higher"].replace("%", "")),
-                float(census_data["33705"]["employment_rate"].replace("%", "")),
-                float(census_data["33705"]["without_health_insurance"].replace("%", ""))
-            ]
-        }
-        
-        comparison_df = pd.DataFrame(comparison_data)
-        
-        # Population comparison (separate due to scale difference)
-        st.subheader("Population Comparison")
-        pop_df = comparison_df[comparison_df["Metric"] == "Population"].melt(id_vars="Metric", var_name="ZIP", value_name="Value")
-        st.bar_chart(pop_df.set_index("ZIP")["Value"])
-        
-        # Other metrics comparison
-        st.subheader("Key Metrics Comparison")
-        metrics_df = comparison_df[comparison_df["Metric"] != "Population"]
-        
-        # Create individual charts for better visualization
-        for metric in metrics_df["Metric"].unique():
-            st.write(f"**{metric}**")
-            metric_df = metrics_df[metrics_df["Metric"] == metric].melt(id_vars="Metric", var_name="ZIP", value_name="Value")
-            st.bar_chart(metric_df.set_index("ZIP")["Value"])
-
-elif tab == "Election History":
-    st.title("Election History")
-    
-    # Presidential election data
-    presidential_data = {
-        'Precinct': [123, 130, 108, 126, 109, 121, 119, 125, 118, 106, 116, 117, 122],
-        'Registered': [4627, 3764, 2773, 1958, 2151, 922, 2684, 1301, 1175, 760, 1511, 1105, 258],
-        'Trump': [1481, 1156, 839, 561, 306, 286, 282, 276, 274, 207, 176, 77, 67],
-        'Kamala': [2387, 1996, 1367, 908, 1319, 413, 1432, 732, 708, 454, 835, 598, 149],
-        'Voted For Trump %': [32.01, 30.71, 30.26, 28.65, 14.23, 31.02, 10.51, 21.21, 23.32, 27.24, 11.65, 6.97, 25.97],
-        'Voted For Kamala %': [51.59, 53.03, 49.30, 46.37, 61.32, 44.79, 53.35, 56.26, 60.26, 59.74, 55.26, 54.12, 57.75]
-    }
-    presidential_df = pd.DataFrame(presidential_data)
-    
-    # Create tabs for different views
-    election_tabs = st.tabs(["Presidential Results", "Strategic Insights"])
-    
-    with election_tabs[0]:
-        st.header("Presidential Election Results")
-        
-        # Create a bar chart comparing Trump and Kamala percentages
-        chart_df = presidential_df.copy()
-        chart_df['Precinct'] = chart_df['Precinct'].astype(str)
-        chart_df = chart_df.sort_values('Voted For Kamala %', ascending=False)
-        
-        # Create a chart comparing Trump and Kamala percentages
-        st.bar_chart(chart_df.set_index('Precinct')[['Voted For Trump %', 'Voted For Kamala %']])
-        
-        # Display the raw data in a table
-        st.subheader("Presidential Results Data Table")
-        st.dataframe(presidential_df)
-    
-    with election_tabs[1]:
-        st.header("Strategic Insights")
-        
-        # Strongest Democratic precincts
-        strongest_dem = presidential_df.nlargest(3, 'Voted For Kamala %')
-        strongest_dem_precincts = strongest_dem['Precinct'].astype(str).tolist()
-        strongest_dem_rates = [f"{x:.1f}%" for x in strongest_dem['Voted For Kamala %'].tolist()]
-        
-        # Strongest Republican precincts
-        strongest_rep = presidential_df.nlargest(3, 'Voted For Trump %')
-        strongest_rep_precincts = strongest_rep['Precinct'].astype(str).tolist()
-        strongest_rep_rates = [f"{x:.1f}%" for x in strongest_rep['Voted For Trump %'].tolist()]
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("Strongest Democratic Precincts")
-            for i in range(len(strongest_dem_precincts)):
-                st.markdown(f"**Precinct {strongest_dem_precincts[i]}**: {strongest_dem_rates[i]} for Kamala")
+            st.success("Contact information saved!")
             
-            st.markdown("""
-            **Strategy for Democratic-Leaning Areas:**
-            - Focus on base mobilization and turnout
-            - Emphasize progressive policy positions
-            - Recruit volunteers from these areas
-            - Use these areas for visibility events and rallies
-            """)
-        
-        with col2:
-            st.subheader("Strongest Republican Precincts")
-            for i in range(len(strongest_rep_precincts)):
-                st.markdown(f"**Precinct {strongest_rep_precincts[i]}**: {strongest_rep_rates[i]} for Trump")
-            
-            st.markdown("""
-            **Strategy for Republican-Leaning Areas:**
-            - Focus on persuadable voters and independents
-            - Emphasize moderate policy positions
-            - Address specific local concerns
-            - Use targeted messaging on issues with bipartisan appeal
-            """)
+            # Return to the home page
+            navigate_to("home")
+    else:
+        st.error("No address selected for contact.")
+        if st.button("Return to Home"):
+            navigate_to("home")
 
-elif tab == "Stats":
-    st.title("Canvassing Statistics")
+# Add debug information in sidebar
+with st.sidebar.expander("Debug Information"):
+    st.write("Current Directory:")
+    st.code(os.getcwd())
     
-    # Calculate statistics from session state
-    total_addresses = sum(len(addresses) for addresses in st.session_state.precinct_addresses.values())
-    visited_count = len(st.session_state.visited_addresses)
-    coverage_percentage = (visited_count / total_addresses * 100) if total_addresses > 0 else 0
+    st.write("Available Files:")
+    file_list = os.listdir()
+    st.write(file_list)
     
-    # Display overall stats
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Addresses", total_addresses)
-    with col2:
-        st.metric("Addresses Visited", visited_count)
-    with col3:
-        st.metric("Coverage", f"{coverage_percentage:.1f}%")
+    if os.path.exists('/home/ubuntu/upload'):
+        st.write("Upload Directory Files:")
+        upload_files = os.listdir('/home/ubuntu/upload')
+        st.write(upload_files)
     
-    # Support level breakdown
-    st.subheader("Support Level Breakdown")
+    st.write("Fixed JSON File Status:")
+    if os.path.exists('/home/ubuntu/fixed_addresses.json'):
+        st.success("Fixed addresses.json file exists")
+    else:
+        st.error("Fixed addresses.json file not found")
     
-    # Count support levels
-    support_counts = {
-        "Strong Support": 0,
-        "Leaning Support": 0,
-        "Undecided": 0,
-        "Leaning Against": 0,
-        "Strong Against": 0,
-        "Refused": 0
-    }
+    st.write("User Location:")
+    st.write(st.session_state.user_location)
     
-    for support in st.session_state.support_levels.values():
-        if support in support_counts:
-            support_counts[support] += 1
-    
-    # Create a DataFrame for the chart
-    support_df = pd.DataFrame({
-        'Support Level': list(support_counts.keys()),
-        'Count': list(support_counts.values())
-    })
-    
-    # Display the chart
-    st.bar_chart(support_df.set_index('Support Level'))
-    
-    # Donation statistics
-    st.subheader("Donation Statistics")
-    
-    total_donations = sum(st.session_state.donations.values())
-    donors_count = len([d for d in st.session_state.donations.values() if d > 0])
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Donations", f"${total_donations:.2f}")
-    with col2:
-        st.metric("Number of Donors", donors_count)
-    with col3:
-        avg_donation = total_donations / donors_count if donors_count > 0 else 0
-        st.metric("Average Donation", f"${avg_donation:.2f}")
-    
-    # Precinct coverage
-    st.subheader("Precinct Coverage")
-    
-    # Calculate precinct coverage from visited addresses
-    precinct_coverage = {}
-    precincts = get_district6_precincts()
-    
-    for p in precincts:
-        precinct_id = p['id']
-        precinct_addresses = len(st.session_state.precinct_addresses.get(precinct_id, []))
-        visited_in_precinct = len([a for a in st.session_state.visited_addresses if a.startswith(f"{precinct_id}_")])
-        coverage = (visited_in_precinct / precinct_addresses * 100) if precinct_addresses > 0 else 0
-        precinct_coverage[precinct_id] = coverage
-    
-    # Create a bar chart for precinct coverage
-    coverage_df = pd.DataFrame({
-        'Precinct': list(precinct_coverage.keys()),
-        'Coverage %': list(precinct_coverage.values())
-    })
-    
-    st.bar_chart(coverage_df.set_index('Precinct'))
-    
-    # Data export options
-    st.subheader("Data Export")
-    st.markdown("""
-    Export your canvassing data for further analysis or reporting. This feature would allow you to:
-    - Download interaction notes as CSV
-    - Export precinct coverage statistics
-    - Generate reports for campaign leadership
-    
-    *Note: In this demo version, data export is simulated. In a production version, this would generate actual files.*
-    """)
-    
-    if st.button("Export Data (Demo)"):
-        st.success("Data export simulated successfully! In a production version, this would download a CSV file.")
-
-elif tab == "Settings":
-    st.title("Settings")
-    
-    # Volunteer information
-    st.subheader("Volunteer Information")
-    
-    with st.form("volunteer_form"):
-        name = st.text_input("Your Name", value=st.session_state.volunteer_name)
-        email = st.text_input("Email")
-        phone = st.text_input("Phone Number")
-        
-        if st.form_submit_button("Save Settings"):
-            st.session_state.volunteer_name = name
-            st.success("Settings saved successfully!")
-    
-    # Map settings
-    st.subheader("Map Settings")
-    
-    cluster_view = st.checkbox("Group Addresses by Default", value=st.session_state.cluster_view)
-    if cluster_view != st.session_state.cluster_view:
-        st.session_state.cluster_view = cluster_view
-        st.success("Map settings saved successfully!")
-    
-    # Help and support
-    st.subheader("Help & Support")
-    st.markdown("""
-    If you encounter any issues or have questions:
-    - Contact your campaign coordinator
-    - Email support at support@district6campaign.org
-    - Call the campaign office at (727) 555-6789
-    """)
-    
-    # About
-    st.subheader("About")
-    st.markdown("""
-    **District 6 Canvassing App** v1.0
-    
-    This app helps campaign volunteers efficiently canvas District 6 by providing optimized routes, 
-    tracking progress, and recording voter interactions.
-    
-    Thank you for volunteering! Your efforts make a huge difference in connecting with voters and 
-    building support for our campaign.
-    """)
-
-# Footer
-st.markdown("---")
-st.markdown("© 2025 District 6 Campaign | Powered by Streamlit")
+    # Show sample data checkbox
+    use_sample_data = st.checkbox("Use Sample Data", value=True)
+    if use_sample_data and not st.session_state.data_loaded:
+        st.session_state.address_data = generate_sample_addresses()
+        st.session_state.data_loaded = True
+        st.success("Using sample data with all addresses")
+        st.rerun()
