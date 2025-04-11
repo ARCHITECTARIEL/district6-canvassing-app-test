@@ -40,6 +40,17 @@ if 'support_levels' not in st.session_state:
     st.session_state.support_levels = {}
 if 'donations' not in st.session_state:
     st.session_state.donations = {}
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = "home"
+if 'contact_address' not in st.session_state:
+    st.session_state.contact_address = None
+
+# Function to navigate between pages
+def navigate_to(page, address=None):
+    st.session_state.current_page = page
+    if address is not None:
+        st.session_state.contact_address = address
+    st.experimental_rerun()
 
 # Sidebar for navigation
 st.sidebar.title("District 6 Canvassing")
@@ -497,8 +508,123 @@ if volunteer_name != st.session_state.volunteer_name:
 if st.sidebar.button("Sync Data"):
     st.sidebar.success("Data synchronized successfully!")
 
-# Main content area
-if tab == "Home":
+# Main content area based on current page
+if st.session_state.current_page == "contact" and st.session_state.contact_address:
+    # Contact page
+    address = st.session_state.contact_address
+    address_id = address.get('id', '')
+    
+    st.title("Contact Information")
+    
+    # Back button
+    if st.button("← Back to Addresses"):
+        navigate_to("home")
+    
+    st.markdown("---")
+    
+    # Display address information
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        owner = f"{address.get('owner1', 'Unknown')} {address.get('owner2', '')}"
+        address_text = f"{address.get('address', '')}, {address.get('city_zip', '')}"
+        property_type = address.get('property_type', 'Residential')
+        
+        # Check if this is Ariel's address
+        is_ariel = "FERNANDEZ, ARIEL" in str(address.get('owner1', ''))
+        
+        if is_ariel:
+            st.markdown("### 🌟 YOUR ADDRESS 🌟")
+            st.markdown(f"**👤 {owner}**")
+            st.markdown(f"**🏠 {address_text}**")
+            st.markdown(f"**🏘️ {property_type}**")
+        else:
+            st.markdown(f"## {owner}")
+            st.markdown(f"**Address:** {address_text}")
+            st.markdown(f"**Property Type:** {property_type}")
+    
+    with col2:
+        # Display visit status
+        if address_id in st.session_state.visited_addresses:
+            st.success("Previously Visited")
+        else:
+            st.info("Not Yet Visited")
+    
+    st.markdown("---")
+    
+    # Support level
+    st.subheader("Voter Support Level")
+    support_options = ["Strong Support", "Leaning Support", "Undecided", "Leaning Against", "Strong Against", "Refused"]
+    current_support = st.session_state.support_levels.get(address_id, "")
+    support = st.radio("Support Level:", support_options, index=support_options.index(current_support) if current_support in support_options else 2)
+    
+    # Donation
+    st.subheader("Donation Information")
+    current_donation = st.session_state.donations.get(address_id, 0)
+    donation = st.number_input("Donation Amount ($):", min_value=0.0, value=float(current_donation), step=5.0)
+    
+    # Notes
+    st.subheader("Interaction Notes")
+    current_notes = st.session_state.interaction_notes.get(address_id, "")
+    notes = st.text_area("Notes:", value=current_notes, height=150)
+    
+    # Tags
+    st.subheader("Quick Tags")
+    col1, col2, col3, col4 = st.columns(4)
+    tag_options = ["Interested in Yard Sign", "Wants More Info", "Willing to Volunteer", "Needs Follow-up"]
+    
+    # Extract existing tags from notes
+    existing_tags = []
+    for tag in tag_options:
+        if tag in current_notes:
+            existing_tags.append(tag)
+    
+    # Display tag checkboxes
+    selected_tags = []
+    with col1:
+        if st.checkbox(tag_options[0], value=tag_options[0] in existing_tags):
+            selected_tags.append(tag_options[0])
+    with col2:
+        if st.checkbox(tag_options[1], value=tag_options[1] in existing_tags):
+            selected_tags.append(tag_options[1])
+    with col3:
+        if st.checkbox(tag_options[2], value=tag_options[2] in existing_tags):
+            selected_tags.append(tag_options[2])
+    with col4:
+        if st.checkbox(tag_options[3], value=tag_options[3] in existing_tags):
+            selected_tags.append(tag_options[3])
+    
+    # Save and cancel buttons
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Save Contact Information", use_container_width=True):
+            # Add tags to notes if not already present
+            for tag in selected_tags:
+                if tag not in notes:
+                    if notes:
+                        notes += f"\n[{tag}]"
+                    else:
+                        notes = f"[{tag}]"
+            
+            # Remove tags that were unchecked
+            for tag in tag_options:
+                if tag not in selected_tags and f"[{tag}]" in notes:
+                    notes = notes.replace(f"[{tag}]", "").strip()
+            
+            # Save all information
+            st.session_state.visited_addresses.add(address_id)
+            st.session_state.interaction_notes[address_id] = notes
+            st.session_state.support_levels[address_id] = support
+            st.session_state.donations[address_id] = donation
+            
+            # Return to home page
+            st.success("Contact information saved successfully!")
+            navigate_to("home")
+    
+    with col2:
+        if st.button("Cancel", use_container_width=True):
+            navigate_to("home")
+
+elif tab == "Home" and st.session_state.current_page == "home":
     st.title("District 6 Door Knocking Campaign")
     
     # Precinct selector
@@ -633,15 +759,18 @@ if tab == "Home":
                                             
                                             if not visited:
                                                 if st.button("Contact", key=f"contact_cluster_{address_id}"):
-                                                    # Open contact dialog
-                                                    st.session_state.current_contact_address = address
-                                                    st.rerun()
+                                                    # Open contact page
+                                                    navigate_to("contact", address)
                                             else:
                                                 st.success("Visited")
                                                 # Show support level if recorded
                                                 if address_id in st.session_state.support_levels:
                                                     support = st.session_state.support_levels[address_id]
                                                     st.info(f"Support: {support}")
+                                                
+                                                # View/Edit button
+                                                if st.button("View/Edit", key=f"edit_{address_id}"):
+                                                    navigate_to("contact", address)
                                         
                                         st.markdown("---")
                         else:
@@ -828,9 +957,8 @@ if tab == "Home":
                         with col2:
                             if not visited:
                                 if st.button("Contact", key=f"contact_{address_id}"):
-                                    # Open contact dialog
-                                    st.session_state.current_contact_address = address
-                                    st.rerun()
+                                    # Open contact page
+                                    navigate_to("contact", address)
                                 
                                 if st.button("Not Home", key=f"nothome_{address_id}"):
                                     st.session_state.visited_addresses.add(address_id)
@@ -855,11 +983,9 @@ if tab == "Home":
                                     donation = st.session_state.donations[address_id]
                                     st.success(f"Donation: ${donation}")
                                 
-                                # View notes button
-                                if address_id in st.session_state.interaction_notes:
-                                    if st.button("View Notes", key=f"view_notes_{address_id}"):
-                                        st.session_state.current_contact_address = address
-                                        st.rerun()
+                                # View/Edit button
+                                if st.button("View/Edit", key=f"view_notes_{address_id}"):
+                                    navigate_to("contact", address)
                         
                         if is_ariel:
                             st.markdown("---")
@@ -884,99 +1010,8 @@ if tab == "Home":
             st.warning(f"No addresses found for Precinct {precinct_id}. Please try another precinct or check your data file.")
     else:
         st.info("Please select a precinct to begin canvassing")
-    
-    # Contact dialog
-    if hasattr(st.session_state, 'current_contact_address') and st.session_state.current_contact_address:
-        address = st.session_state.current_contact_address
-        address_id = address.get('id', '')
-        
-        st.markdown("---")
-        st.subheader("Contact Information")
-        
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            owner = f"{address.get('owner1', 'Unknown')} {address.get('owner2', '')}"
-            address_text = f"{address.get('address', '')}, {address.get('city_zip', '')}"
-            property_type = address.get('property_type', 'Residential')
-            
-            st.markdown(f"**{owner}**")
-            st.text(address_text)
-            st.text(f"Type: {property_type}")
-        
-        with col2:
-            if st.button("Close"):
-                del st.session_state.current_contact_address
-                st.rerun()
-        
-        # Support level
-        st.subheader("Voter Support Level")
-        support_options = ["Strong Support", "Leaning Support", "Undecided", "Leaning Against", "Strong Against", "Refused"]
-        current_support = st.session_state.support_levels.get(address_id, "")
-        support = st.radio("Support Level:", support_options, index=support_options.index(current_support) if current_support in support_options else 2)
-        
-        # Donation
-        st.subheader("Donation Information")
-        current_donation = st.session_state.donations.get(address_id, 0)
-        donation = st.number_input("Donation Amount ($):", min_value=0.0, value=float(current_donation), step=5.0)
-        
-        # Notes
-        st.subheader("Interaction Notes")
-        current_notes = st.session_state.interaction_notes.get(address_id, "")
-        notes = st.text_area("Notes:", value=current_notes, height=100)
-        
-        # Tags
-        st.subheader("Quick Tags")
-        col1, col2, col3, col4 = st.columns(4)
-        tag_options = ["Interested in Yard Sign", "Wants More Info", "Willing to Volunteer", "Needs Follow-up"]
-        
-        # Extract existing tags from notes
-        existing_tags = []
-        for tag in tag_options:
-            if tag in current_notes:
-                existing_tags.append(tag)
-        
-        # Display tag checkboxes
-        selected_tags = []
-        with col1:
-            if st.checkbox(tag_options[0], value=tag_options[0] in existing_tags):
-                selected_tags.append(tag_options[0])
-        with col2:
-            if st.checkbox(tag_options[1], value=tag_options[1] in existing_tags):
-                selected_tags.append(tag_options[1])
-        with col3:
-            if st.checkbox(tag_options[2], value=tag_options[2] in existing_tags):
-                selected_tags.append(tag_options[2])
-        with col4:
-            if st.checkbox(tag_options[3], value=tag_options[3] in existing_tags):
-                selected_tags.append(tag_options[3])
-        
-        # Save button
-        if st.button("Save Interaction"):
-            # Add tags to notes if not already present
-            for tag in selected_tags:
-                if tag not in notes:
-                    if notes:
-                        notes += f"\n[{tag}]"
-                    else:
-                        notes = f"[{tag}]"
-            
-            # Remove tags that were unchecked
-            for tag in tag_options:
-                if tag not in selected_tags and f"[{tag}]" in notes:
-                    notes = notes.replace(f"[{tag}]", "").strip()
-            
-            # Save all information
-            st.session_state.visited_addresses.add(address_id)
-            st.session_state.interaction_notes[address_id] = notes
-            st.session_state.support_levels[address_id] = support
-            st.session_state.donations[address_id] = donation
-            
-            # Close dialog
-            del st.session_state.current_contact_address
-            st.success("Interaction saved successfully!")
-            st.rerun()
 
-elif tab == "Demographics":
+elif tab == "Demographics" and st.session_state.current_page == "home":
     st.title("Neighborhood Demographics")
     
     # Census data
@@ -1118,7 +1153,7 @@ elif tab == "Demographics":
             metric_df = metrics_df[metrics_df["Metric"] == metric].melt(id_vars="Metric", var_name="ZIP", value_name="Value")
             st.bar_chart(metric_df.set_index("ZIP")["Value"])
 
-elif tab == "Election History":
+elif tab == "Election History" and st.session_state.current_page == "home":
     st.title("Election History")
     
     # Presidential election data
@@ -1191,7 +1226,7 @@ elif tab == "Election History":
             - Use targeted messaging on issues with bipartisan appeal
             """)
 
-elif tab == "Stats":
+elif tab == "Stats" and st.session_state.current_page == "home":
     st.title("Canvassing Statistics")
     
     # Calculate statistics from session state
@@ -1285,7 +1320,7 @@ elif tab == "Stats":
     if st.button("Export Data (Demo)"):
         st.success("Data export simulated successfully! In a production version, this would download a CSV file.")
 
-elif tab == "Settings":
+elif tab == "Settings" and st.session_state.current_page == "home":
     st.title("Settings")
     
     # Volunteer information
