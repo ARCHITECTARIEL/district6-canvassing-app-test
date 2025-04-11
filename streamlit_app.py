@@ -5,6 +5,9 @@ import os
 import re
 import requests
 from urllib.parse import quote
+import numpy as np
+from sklearn.cluster import DBSCAN
+from collections import defaultdict
 
 # Set page configuration
 st.set_page_config(
@@ -31,6 +34,10 @@ if 'precinct_addresses' not in st.session_state:
     st.session_state.precinct_addresses = {}
 if 'data_loaded' not in st.session_state:
     st.session_state.data_loaded = False
+if 'cluster_view' not in st.session_state:
+    st.session_state.cluster_view = True
+if 'selected_cluster' not in st.session_state:
+    st.session_state.selected_cluster = None
 
 # Sidebar for navigation
 st.sidebar.title("District 6 Canvassing")
@@ -84,20 +91,51 @@ def generate_sample_addresses():
     precincts = get_district6_precincts()
     for precinct in precincts:
         precinct_id = precinct["id"]
-        for i in range(20):  # 20 addresses per precinct
+        
+        # Generate a few apartment buildings/condos with multiple units
+        for b in range(3):
+            building_num = 100 + b * 100
+            building_name = ["OAK TERRACE", "PALM HEIGHTS", "BAYVIEW TOWERS", "SUNSET CONDOS"][b % 4]
+            street_name = ["MAIN", "OAK", "BEACH", "CENTRAL"][b % 4]
+            zip_code = "33701" if b % 2 == 0 else "33705"
+            
+            # Generate multiple units in the same building
+            for i in range(10):  # 10 units per building
+                unit_num = i + 1
+                
+                sample_data.append({
+                    "PARCEL_NUMBER": f"SAMPLE-{precinct_id}-BLDG{b}-UNIT{unit_num}",
+                    "OWNER1": f"RESIDENT {precinct_id}-{b}-{unit_num}",
+                    "OWNER2": "FAMILY MEMBER" if i % 3 == 0 else "",
+                    "SITE_ADDRESS": f"{building_num} {street_name} ST APT {unit_num}",
+                    "SITE_CITYZIP": f"ST PETERSBURG, FL {zip_code}",
+                    "PROPERTY_USE": f"0300 Multi-Family",
+                    "HX_YN": "Yes" if i % 2 == 0 else "No",
+                    "STR_NUM": building_num,
+                    "STR_NAME": street_name,
+                    "STR_UNIT": f"APT {unit_num}",
+                    "STR_ZIP": zip_code,
+                    "PRECINCT": precinct_id,  # Explicitly assign precinct
+                    "BUILDING_NAME": building_name
+                })
+        
+        # Generate some single-family homes
+        for i in range(10):  # 10 single-family homes per precinct
+            home_num = 200 + i * 10
+            street_name = ["PINE", "MAPLE", "PALM", "OCEAN"][i % 4]
             zip_code = "33701" if i % 2 == 0 else "33705"
             
             sample_data.append({
-                "PARCEL_NUMBER": f"SAMPLE-{precinct_id}-{i}",
-                "OWNER1": f"RESIDENT {precinct_id}-{i}",
+                "PARCEL_NUMBER": f"SAMPLE-{precinct_id}-HOME-{i}",
+                "OWNER1": f"RESIDENT {precinct_id}-HOME-{i}",
                 "OWNER2": "FAMILY MEMBER" if i % 3 == 0 else "",
-                "SITE_ADDRESS": f"{100 + i} MAIN ST",
+                "SITE_ADDRESS": f"{home_num} {street_name} AVE",
                 "SITE_CITYZIP": f"ST PETERSBURG, FL {zip_code}",
                 "PROPERTY_USE": f"0110 Single Family Home",
                 "HX_YN": "Yes" if i % 2 == 0 else "No",
-                "STR_NUM": 100 + i,
-                "STR_NAME": "MAIN",
-                "STR_UNIT": f"#{i}" if i % 4 == 0 else "",
+                "STR_NUM": home_num,
+                "STR_NAME": street_name,
+                "STR_UNIT": "",
                 "STR_ZIP": zip_code,
                 "PRECINCT": precinct_id  # Explicitly assign precinct
             })
@@ -210,6 +248,18 @@ def process_address_data(address_data):
                 address.get('STR_ZIP') == '33705'):
                 address['PRECINCT'] = '106'
                 address['OWNER1'] = 'FERNANDEZ, ARIEL'
+        
+        # Add building name if not present for multi-family properties
+        if 'BUILDING_NAME' not in address:
+            property_use = str(address.get('PROPERTY_USE', ''))
+            if '0300' in property_use or 'Multi-Family' in property_use or 'Condo' in property_use or 'Apartment' in property_use:
+                # Extract building name from address or create one
+                street_num = str(address.get('STR_NUM', ''))
+                street_name = str(address.get('STR_NAME', ''))
+                if street_name:
+                    address['BUILDING_NAME'] = f"{street_name.title()} {street_num} Condos"
+                else:
+                    address['BUILDING_NAME'] = f"Building {street_num}"
     
     # Make sure Ariel's address is included
     ariel_exists = False
@@ -275,6 +325,29 @@ def organize_addresses_by_precinct():
                 else:
                     precinct_id = '130'  # Default for other ZIP codes
             
+            # Generate unique coordinates with small variations for addresses in the same building
+            # This ensures they cluster properly but don't overlap exactly
+            street_num = address.get('STR_NUM', 0)
+            street_name = str(address.get('STR_NAME', ''))
+            unit = str(address.get('STR_UNIT', ''))
+            
+            # Base coordinates for St. Petersburg
+            base_lat = 27.773056
+            base_lon = -82.639999
+            
+            # Generate deterministic but unique coordinates
+            hash_val = hash(f"{street_num}{street_name}")
+            lat = base_lat + (hash_val % 1000) / 50000
+            lon = base_lon + (hash_val % 1000) / 50000
+            
+            # Add small variation for units in the same building
+            if unit:
+                unit_num = ''.join(filter(str.isdigit, unit))
+                if unit_num:
+                    unit_val = int(unit_num)
+                    lat += unit_val / 1000000
+                    lon += unit_val / 1000000
+            
             # Format the address data
             formatted_address = {
                 "id": f"{precinct_id}_{address.get('PARCEL_NUMBER', '')}",
@@ -285,13 +358,90 @@ def organize_addresses_by_precinct():
                 "city_zip": address.get('SITE_CITYZIP', ''),
                 "property_type": address.get('PROPERTY_USE', 'Unknown').split(' ')[0] if address.get('PROPERTY_USE') else 'Unknown',
                 "owner_occupied": "Yes" if address.get('HX_YN', 'No') == 'Yes' else "No",
-                "lat": 27.773056 + (hash(str(address.get('STR_NUM', 0)) + str(address.get('STR_NAME', ''))) % 1000) / 50000,  # Generate unique coordinates
-                "lon": -82.639999 + (hash(str(address.get('PARCEL_NUMBER', '')) + str(address.get('STR_ZIP', ''))) % 1000) / 50000  # centered around St. Petersburg
+                "lat": lat,
+                "lon": lon,
+                "street_num": street_num,
+                "street_name": street_name,
+                "unit": unit,
+                "building_name": address.get('BUILDING_NAME', '')
             }
             
             # Add to the appropriate precinct
             if precinct_id in st.session_state.precinct_addresses:
                 st.session_state.precinct_addresses[precinct_id].append(formatted_address)
+
+# Cluster addresses by location
+def cluster_addresses(addresses, eps=0.0005, min_samples=1):
+    # Extract coordinates
+    coords = np.array([[a['lat'], a['lon']] for a in addresses])
+    
+    # Skip clustering if not enough addresses
+    if len(coords) < 2:
+        return {-1: addresses}
+    
+    # Perform clustering
+    clustering = DBSCAN(eps=eps, min_samples=min_samples).fit(coords)
+    labels = clustering.labels_
+    
+    # Group addresses by cluster
+    clusters = defaultdict(list)
+    for i, label in enumerate(labels):
+        clusters[label].append(addresses[i])
+    
+    return clusters
+
+# Create cluster markers for the map
+def create_cluster_markers(clusters):
+    markers = []
+    
+    for cluster_id, addresses in clusters.items():
+        if cluster_id == -1:  # Noise points (not clustered)
+            for address in addresses:
+                markers.append({
+                    'lat': address['lat'],
+                    'lon': address['lon'],
+                    'size': 1,
+                    'color': 'blue',
+                    'label': f"Single Address: {address['address']}",
+                    'cluster_id': f"single_{address['id']}",
+                    'address_count': 1,
+                    'addresses': [address]
+                })
+        else:
+            # Calculate cluster center
+            lats = [a['lat'] for a in addresses]
+            lons = [a['lon'] for a in addresses]
+            center_lat = sum(lats) / len(lats)
+            center_lon = sum(lons) / len(lons)
+            
+            # Determine if this is a multi-unit building
+            street_nums = set([a['street_num'] for a in addresses])
+            street_names = set([a['street_name'] for a in addresses])
+            
+            is_building = len(street_nums) == 1 and len(street_names) == 1 and len(addresses) > 1
+            
+            if is_building:
+                # This is a multi-unit building
+                building_name = next((a['building_name'] for a in addresses if a['building_name']), f"{addresses[0]['street_num']} {addresses[0]['street_name']}")
+                color = 'red'  # Red for multi-unit buildings
+                label = f"{building_name} ({len(addresses)} units)"
+            else:
+                # This is a neighborhood cluster
+                color = 'green'  # Green for neighborhood clusters
+                label = f"Neighborhood Cluster ({len(addresses)} addresses)"
+            
+            markers.append({
+                'lat': center_lat,
+                'lon': center_lon,
+                'size': min(len(addresses), 10),  # Cap size for very large clusters
+                'color': color,
+                'label': label,
+                'cluster_id': f"cluster_{cluster_id}",
+                'address_count': len(addresses),
+                'addresses': addresses
+            })
+    
+    return markers
 
 # Organize addresses by precinct
 organize_addresses_by_precinct()
@@ -380,14 +530,174 @@ if tab == "Home":
             if filtered_addresses:
                 st.subheader("Map View")
                 
-                # Create a DataFrame for the map
-                map_data = pd.DataFrame({
-                    'lat': [a.get('lat', 0) for a in filtered_addresses],
-                    'lon': [a.get('lon', 0) for a in filtered_addresses]
-                })
+                # Map view options
+                map_col1, map_col2 = st.columns([1, 3])
+                with map_col1:
+                    cluster_view = st.checkbox("Group Addresses", value=st.session_state.cluster_view)
+                    if cluster_view != st.session_state.cluster_view:
+                        st.session_state.cluster_view = cluster_view
+                        st.session_state.selected_cluster = None
                 
-                # Display the map
-                st.map(map_data)
+                # Create map data based on view mode
+                if st.session_state.cluster_view:
+                    # Cluster addresses
+                    clusters = cluster_addresses(filtered_addresses)
+                    
+                    # Create cluster markers
+                    markers = create_cluster_markers(clusters)
+                    
+                    # Check if a cluster is selected
+                    if st.session_state.selected_cluster:
+                        # Find the selected cluster
+                        selected_marker = next((m for m in markers if m['cluster_id'] == st.session_state.selected_cluster), None)
+                        
+                        if selected_marker:
+                            # Show only the selected cluster's addresses
+                            with map_col2:
+                                st.write(f"**Selected: {selected_marker['label']}**")
+                                if st.button("Back to All Clusters"):
+                                    st.session_state.selected_cluster = None
+                                    st.rerun()
+                            
+                            # Create map data for individual addresses in the cluster
+                            map_data = pd.DataFrame({
+                                'lat': [a['lat'] for a in selected_marker['addresses']],
+                                'lon': [a['lon'] for a in selected_marker['addresses']]
+                            })
+                            
+                            # Display the map
+                            st.map(map_data)
+                            
+                            # Show addresses in this cluster
+                            st.subheader(f"Addresses in {selected_marker['label']}")
+                            
+                            # Group addresses by building/street
+                            if selected_marker['address_count'] > 1:
+                                # Sort addresses by street number and unit
+                                sorted_addresses = sorted(
+                                    selected_marker['addresses'],
+                                    key=lambda a: (a['street_num'], a.get('unit', ''))
+                                )
+                                
+                                # Display addresses in a more compact format
+                                for address in sorted_addresses:
+                                    with st.container():
+                                        col1, col2 = st.columns([3, 1])
+                                        with col1:
+                                            owner = f"{address.get('owner1', 'Unknown')} {address.get('owner2', '')}"
+                                            address_text = f"{address.get('address', '')}"
+                                            st.markdown(f"**{owner}**")
+                                            st.text(address_text)
+                                        
+                                        with col2:
+                                            address_id = address.get('id', '')
+                                            visited = address_id in st.session_state.visited_addresses
+                                            
+                                            if not visited:
+                                                if st.button("Contact", key=f"contact_cluster_{address_id}"):
+                                                    st.session_state.visited_addresses.add(address_id)
+                                                    st.success("Interaction recorded successfully!")
+                                                    st.rerun()
+                                            else:
+                                                st.success("Visited")
+                                        
+                                        st.markdown("---")
+                        else:
+                            # Cluster not found, reset selection
+                            st.session_state.selected_cluster = None
+                            st.rerun()
+                    else:
+                        # Show all clusters
+                        # Create map data for clusters
+                        map_data = pd.DataFrame({
+                            'lat': [m['lat'] for m in markers],
+                            'lon': [m['lon'] for m in markers]
+                        })
+                        
+                        # Display the map
+                        st.map(map_data)
+                        
+                        # Display cluster information
+                        st.subheader("Address Clusters")
+                        
+                        # Group markers by type
+                        buildings = [m for m in markers if 'red' in m['color']]
+                        neighborhoods = [m for m in markers if 'green' in m['color']]
+                        singles = [m for m in markers if 'blue' in m['color']]
+                        
+                        # Create tabs for different types of clusters
+                        cluster_tabs = st.tabs(["Buildings", "Neighborhoods", "Single Addresses"])
+                        
+                        with cluster_tabs[0]:
+                            if buildings:
+                                st.write(f"**{len(buildings)} Buildings with Multiple Units**")
+                                for marker in sorted(buildings, key=lambda m: m['address_count'], reverse=True):
+                                    with st.container():
+                                        col1, col2 = st.columns([3, 1])
+                                        with col1:
+                                            st.markdown(f"**{marker['label']}**")
+                                            sample_address = marker['addresses'][0]
+                                            st.text(f"{sample_address['street_num']} {sample_address['street_name']}")
+                                        
+                                        with col2:
+                                            if st.button("View Details", key=f"view_{marker['cluster_id']}"):
+                                                st.session_state.selected_cluster = marker['cluster_id']
+                                                st.rerun()
+                                        
+                                        st.markdown("---")
+                            else:
+                                st.info("No multi-unit buildings found in this precinct.")
+                        
+                        with cluster_tabs[1]:
+                            if neighborhoods:
+                                st.write(f"**{len(neighborhoods)} Neighborhood Clusters**")
+                                for marker in sorted(neighborhoods, key=lambda m: m['address_count'], reverse=True):
+                                    with st.container():
+                                        col1, col2 = st.columns([3, 1])
+                                        with col1:
+                                            st.markdown(f"**{marker['label']}**")
+                                            streets = set([f"{a['street_name']}" for a in marker['addresses']])
+                                            st.text(f"Streets: {', '.join(list(streets)[:3])}{' and more' if len(streets) > 3 else ''}")
+                                        
+                                        with col2:
+                                            if st.button("View Details", key=f"view_{marker['cluster_id']}"):
+                                                st.session_state.selected_cluster = marker['cluster_id']
+                                                st.rerun()
+                                        
+                                        st.markdown("---")
+                            else:
+                                st.info("No neighborhood clusters found in this precinct.")
+                        
+                        with cluster_tabs[2]:
+                            if singles:
+                                st.write(f"**{len(singles)} Individual Addresses**")
+                                for marker in singles:
+                                    with st.container():
+                                        col1, col2 = st.columns([3, 1])
+                                        with col1:
+                                            address = marker['addresses'][0]
+                                            owner = f"{address.get('owner1', 'Unknown')} {address.get('owner2', '')}"
+                                            address_text = f"{address.get('address', '')}"
+                                            st.markdown(f"**{owner}**")
+                                            st.text(address_text)
+                                        
+                                        with col2:
+                                            if st.button("View Details", key=f"view_{marker['cluster_id']}"):
+                                                st.session_state.selected_cluster = marker['cluster_id']
+                                                st.rerun()
+                                        
+                                        st.markdown("---")
+                            else:
+                                st.info("No individual addresses found in this precinct.")
+                else:
+                    # Show all addresses individually
+                    map_data = pd.DataFrame({
+                        'lat': [a.get('lat', 0) for a in filtered_addresses],
+                        'lon': [a.get('lon', 0) for a in filtered_addresses]
+                    })
+                    
+                    # Display the map
+                    st.map(map_data)
             
             # Progress tracking
             total_addresses = len(filtered_addresses)
@@ -422,91 +732,93 @@ if tab == "Home":
             if property_filter != "All":
                 filtered_addresses = [a for a in filtered_addresses if a.get('property_type', 'Unknown') == property_filter]
             
-            # Pagination for addresses
-            addresses_per_page = 10
-            total_pages = (len(filtered_addresses) + addresses_per_page - 1) // addresses_per_page
-            
-            if total_pages > 1:
-                col1, col2, col3 = st.columns([1, 2, 1])
-                with col2:
-                    page = st.slider("Page", 1, max(1, total_pages), 1)
-                    start_idx = (page - 1) * addresses_per_page
-                    end_idx = min(start_idx + addresses_per_page, len(filtered_addresses))
-                    st.write(f"Showing addresses {start_idx + 1}-{end_idx} of {len(filtered_addresses)}")
-            else:
-                page = 1
-                start_idx = 0
-                end_idx = len(filtered_addresses)
-            
-            # Address list
-            for i, address in enumerate(filtered_addresses[start_idx:end_idx]):
-                address_id = address.get('id', i)
-                visited = address_id in st.session_state.visited_addresses
+            # Only show individual address list if not in cluster view or if a cluster is selected
+            if not st.session_state.cluster_view or st.session_state.selected_cluster:
+                # Pagination for addresses
+                addresses_per_page = 10
+                total_pages = (len(filtered_addresses) + addresses_per_page - 1) // addresses_per_page
                 
-                # Safely check if this is Ariel's address
-                owner1 = str(address.get('owner1', ''))
-                is_ariel = "FERNANDEZ, ARIEL" in owner1
+                if total_pages > 1:
+                    col1, col2, col3 = st.columns([1, 2, 1])
+                    with col2:
+                        page = st.slider("Page", 1, max(1, total_pages), 1)
+                        start_idx = (page - 1) * addresses_per_page
+                        end_idx = min(start_idx + addresses_per_page, len(filtered_addresses))
+                        st.write(f"Showing addresses {start_idx + 1}-{end_idx} of {len(filtered_addresses)}")
+                else:
+                    page = 1
+                    start_idx = 0
+                    end_idx = len(filtered_addresses)
                 
-                # Create a card-like container for each address
-                with st.container():
-                    if is_ariel:
-                        st.markdown("---")
-                        st.markdown("### 🌟 YOUR ADDRESS 🌟")
+                # Address list
+                for i, address in enumerate(filtered_addresses[start_idx:end_idx]):
+                    address_id = address.get('id', i)
+                    visited = address_id in st.session_state.visited_addresses
                     
-                    col1, col2 = st.columns([3, 1])
+                    # Safely check if this is Ariel's address
+                    owner1 = str(address.get('owner1', ''))
+                    is_ariel = "FERNANDEZ, ARIEL" in owner1
                     
-                    with col1:
-                        owner = f"{address.get('owner1', 'Unknown')} {address.get('owner2', '')}"
-                        address_text = f"{address.get('address', '')}, {address.get('city_zip', '')}"
-                        property_info = f"{address.get('property_type', 'Unknown')} • {'Owner Occupied' if address.get('owner_occupied') == 'Yes' else 'Not Owner Occupied'}"
+                    # Create a card-like container for each address
+                    with st.container():
+                        if is_ariel:
+                            st.markdown("---")
+                            st.markdown("### 🌟 YOUR ADDRESS 🌟")
+                        
+                        col1, col2 = st.columns([3, 1])
+                        
+                        with col1:
+                            owner = f"{address.get('owner1', 'Unknown')} {address.get('owner2', '')}"
+                            address_text = f"{address.get('address', '')}, {address.get('city_zip', '')}"
+                            property_info = f"{address.get('property_type', 'Unknown')} • {'Owner Occupied' if address.get('owner_occupied') == 'Yes' else 'Not Owner Occupied'}"
+                            
+                            if is_ariel:
+                                st.markdown(f"**👤 {owner}**")
+                                st.markdown(f"**🏠 {address_text}**")
+                                st.markdown(f"**🏘️ {property_info}**")
+                            else:
+                                st.markdown(f"**{owner}**")
+                                st.text(address_text)
+                                st.text(property_info)
+                        
+                        with col2:
+                            if not visited:
+                                if st.button("Contact", key=f"contact_{address_id}"):
+                                    st.session_state.visited_addresses.add(address_id)
+                                    st.success("Interaction recorded successfully!")
+                                    st.rerun()
+                                
+                                if st.button("Not Home", key=f"nothome_{address_id}"):
+                                    st.session_state.visited_addresses.add(address_id)
+                                    st.success("Marked as Not Home")
+                                    st.rerun()
+                                
+                                if st.button("Skip", key=f"skip_{address_id}"):
+                                    st.session_state.visited_addresses.add(address_id)
+                                    st.success("Marked as Skipped")
+                                    st.rerun()
+                            else:
+                                st.success("Visited")
                         
                         if is_ariel:
-                            st.markdown(f"**👤 {owner}**")
-                            st.markdown(f"**🏠 {address_text}**")
-                            st.markdown(f"**🏘️ {property_info}**")
+                            st.markdown("---")
                         else:
-                            st.markdown(f"**{owner}**")
-                            st.text(address_text)
-                            st.text(property_info)
-                    
+                            st.markdown("---")
+                
+                # Pagination controls
+                if total_pages > 1:
+                    col1, col2, col3 = st.columns([1, 2, 1])
                     with col2:
-                        if not visited:
-                            if st.button("Contact", key=f"contact_{address_id}"):
-                                st.session_state.visited_addresses.add(address_id)
-                                st.success("Interaction recorded successfully!")
-                                st.rerun()
-                            
-                            if st.button("Not Home", key=f"nothome_{address_id}"):
-                                st.session_state.visited_addresses.add(address_id)
-                                st.success("Marked as Not Home")
-                                st.rerun()
-                            
-                            if st.button("Skip", key=f"skip_{address_id}"):
-                                st.session_state.visited_addresses.add(address_id)
-                                st.success("Marked as Skipped")
-                                st.rerun()
-                        else:
-                            st.success("Visited")
-                    
-                    if is_ariel:
-                        st.markdown("---")
-                    else:
-                        st.markdown("---")
-            
-            # Pagination controls
-            if total_pages > 1:
-                col1, col2, col3 = st.columns([1, 2, 1])
-                with col2:
-                    st.write(f"Page {page} of {total_pages}")
-                    prev, next = st.columns(2)
-                    if prev.button("Previous Page", disabled=(page == 1)):
-                        new_page = max(1, page - 1)
-                        st.experimental_set_query_params(page=new_page)
-                        st.rerun()
-                    if next.button("Next Page", disabled=(page == total_pages)):
-                        new_page = min(total_pages, page + 1)
-                        st.experimental_set_query_params(page=new_page)
-                        st.rerun()
+                        st.write(f"Page {page} of {total_pages}")
+                        prev, next = st.columns(2)
+                        if prev.button("Previous Page", disabled=(page == 1)):
+                            new_page = max(1, page - 1)
+                            st.experimental_set_query_params(page=new_page)
+                            st.rerun()
+                        if next.button("Next Page", disabled=(page == total_pages)):
+                            new_page = min(total_pages, page + 1)
+                            st.experimental_set_query_params(page=new_page)
+                            st.rerun()
         else:
             st.warning(f"No addresses found for Precinct {precinct_id}. Please try another precinct or check your data file.")
     else:
@@ -794,6 +1106,14 @@ elif tab == "Settings":
         if st.form_submit_button("Save Settings"):
             st.session_state.volunteer_name = name
             st.success("Settings saved successfully!")
+    
+    # Map settings
+    st.subheader("Map Settings")
+    
+    cluster_view = st.checkbox("Group Addresses by Default", value=st.session_state.cluster_view)
+    if cluster_view != st.session_state.cluster_view:
+        st.session_state.cluster_view = cluster_view
+        st.success("Map settings saved successfully!")
     
     # Help and support
     st.subheader("Help & Support")
