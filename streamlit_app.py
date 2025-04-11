@@ -108,7 +108,8 @@ def generate_sample_addresses():
 def load_addresses_from_github():
     try:
         # URL to the raw addresses.json file in your GitHub repository
-        github_url = "https://raw.githubusercontent.com/ARCHITECTARIEL/district6-canvassing-app-enhanced/main/addresses.json"
+        # Convert from regular GitHub URL to raw content URL
+        github_url = "https://raw.githubusercontent.com/ARCHITECTARIEL/district6-canvassing-app-test/main/addresses.json"
         
         # Fetch the file from GitHub
         response = requests.get(github_url)
