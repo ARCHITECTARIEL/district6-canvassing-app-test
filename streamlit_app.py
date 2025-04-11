@@ -248,10 +248,9 @@ def fix_json_format(content):
 def load_addresses():
     # File paths to try in order
     file_paths = [
-        '/home/ubuntu/fixed_addresses.json',  # Our fixed version
-        '/home/ubuntu/addresses.json',
-        '/home/ubuntu/upload/addresses.json',
-        '/home/ubuntu/upload/Advanced Search 4-11-2025 (1).json'
+        C:\Users\Ariel\Advanced Search 4-11-2025 (1).json
+        C:\Users\Ariel\rrfgiqn2.json
+        C:\Users\Ariel\Voting Precincts 2022.geojson
     ]
     
     # Try local files first
