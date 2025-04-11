@@ -248,9 +248,9 @@ def fix_json_format(content):
 def load_addresses():
     # File paths to try in order
     file_paths = [
-        r"C:\\Users\\Ariel\\Advanced Search 4-11-2025 (1).json",
-        r"C:\\Users\\Ariel\\rrfgiqn2.json",
-        r"C:\\Users\\Ariel\\Voting Precincts 2022.geojson"
+        r"C:\Users\Ariel\Advanced Search 4-11-2025 (1).json",
+        r"C:\Users\Ariel\rrfgiqn2.json",
+        r"C:\Users\Ariel\Voting Precincts 2022.geojson"
     ]
     
     # Try local files first
