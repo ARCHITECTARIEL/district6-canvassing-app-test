@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 import os
+import re
 
 # Set page configuration
 st.set_page_config(
@@ -28,9 +29,17 @@ if 'data_initialized' not in st.session_state:
     st.session_state.data_initialized = False
 if 'address_data' not in st.session_state:
     st.session_state.address_data = None
+if 'search_query' not in st.session_state:
+    st.session_state.search_query = ""
 
 # Debug section to show file paths
-st.sidebar.expander("Debug Info", expanded=False).write(f"Current directory: {os.getcwd()}\nFiles in directory: {os.listdir('.')}")
+with st.sidebar.expander("Debug Info", expanded=False):
+    st.write(f"Current directory: {os.getcwd()}")
+    st.write(f"Files in directory: {os.listdir('.')}")
+    if os.path.exists('./data'):
+        st.write(f"Files in data directory: {os.listdir('./data')}")
+    if os.path.exists('./upload'):
+        st.write(f"Files in upload directory: {os.listdir('./upload')}")
 
 # Load real address data with multiple path options
 @st.cache_data
@@ -49,16 +58,54 @@ def load_address_data():
     # Try each path
     for path in possible_paths:
         try:
-            st.sidebar.info(f"Trying to load from: {path}")
+            with st.sidebar.expander("Loading attempts", expanded=False):
+                st.info(f"Trying to load from: {path}")
             with open(path, 'r') as f:
                 data = json.load(f)
-            st.sidebar.success(f"Successfully loaded from: {path}")
+            with st.sidebar.expander("Loading attempts", expanded=False):
+                st.success(f"Successfully loaded from: {path}")
+            
+            # Add Ariel Fernandez's address if not already in the data
+            ariel_address = {
+                "PARCEL_NUMBER": "ARIEL-RESIDENCE",
+                "OWNER1": "FERNANDEZ, ARIEL",
+                "OWNER2": "",
+                "SITE_ADDRESS": "315 TAYLOR AVE S",
+                "SITE_CITYZIP": "ST PETERSBURG, FL 33705",
+                "SUBDIVISION": "DISTRICT 6",
+                "MAILING_ADDRESS_1": "315 TAYLOR AVE S",
+                "MAILING_CITY": "ST PETERSBURG",
+                "MAILING_STATE": "FL",
+                "MAILING_ZIP": "33705",
+                "PROPERTY_USE": "0110 Single Family Home",
+                "HX_YN": "Yes",
+                "STR_NUM": 315,
+                "STR_NAME": "TAYLOR",
+                "STR_UNIT": "",
+                "STR_ZIP": "33705"
+            }
+            
+            # Check if Ariel's address is already in the data
+            ariel_exists = False
+            for address in data:
+                if (address.get('STR_NUM') == 315 and 
+                    'TAYLOR' in address.get('STR_NAME', '') and 
+                    address.get('STR_ZIP') == '33705'):
+                    ariel_exists = True
+                    break
+            
+            # Add Ariel's address if not found
+            if not ariel_exists:
+                data.append(ariel_address)
+                st.sidebar.success("Added Ariel Fernandez's address to the dataset")
+            
             return data
         except Exception as e:
-            st.sidebar.warning(f"Failed to load from {path}: {str(e)}")
+            with st.sidebar.expander("Loading attempts", expanded=False):
+                st.warning(f"Failed to load from {path}: {str(e)}")
     
     # If we get here, all paths failed
-    st.error("Could not load address data from any location. Please upload the JSON file to your repository.")
+    st.error("Could not load address data from any location. Please upload the JSON file using the uploader in the sidebar.")
     
     # Return sample data as fallback
     return generate_sample_addresses()
@@ -68,6 +115,27 @@ def generate_sample_addresses():
     st.warning("Using generated sample addresses since real data couldn't be loaded.")
     sample_data = []
     
+    # Add Ariel's address to the sample data
+    sample_data.append({
+        "PARCEL_NUMBER": "ARIEL-RESIDENCE",
+        "OWNER1": "FERNANDEZ, ARIEL",
+        "OWNER2": "",
+        "SITE_ADDRESS": "315 TAYLOR AVE S",
+        "SITE_CITYZIP": "ST PETERSBURG, FL 33705",
+        "SUBDIVISION": "DISTRICT 6",
+        "MAILING_ADDRESS_1": "315 TAYLOR AVE S",
+        "MAILING_CITY": "ST PETERSBURG",
+        "MAILING_STATE": "FL",
+        "MAILING_ZIP": "33705",
+        "PROPERTY_USE": "0110 Single Family Home",
+        "HX_YN": "Yes",
+        "STR_NUM": 315,
+        "STR_NAME": "TAYLOR",
+        "STR_UNIT": "",
+        "STR_ZIP": "33705"
+    })
+    
+    # Generate additional sample addresses
     for i in range(50):
         precinct_id = str(106 + (i % 13))
         zip_code = "33701" if i % 2 == 0 else "33705"
@@ -107,7 +175,7 @@ def get_district6_precincts():
     ]
 
 # Get real addresses for a precinct
-def get_real_addresses(precinct_id):
+def get_real_addresses(precinct_id, search_query=""):
     if st.session_state.address_data is None:
         st.session_state.address_data = load_address_data()
     
@@ -142,8 +210,22 @@ def get_real_addresses(precinct_id):
             }
             addresses.append(formatted_address)
     
-    # Limit to 20 addresses for demo purposes
-    return addresses[:20]
+    # Apply search filter if provided
+    if search_query:
+        search_query = search_query.lower()
+        filtered_addresses = []
+        for address in addresses:
+            # Check if search query matches any part of the address
+            if (search_query in address['owner1'].lower() or
+                search_query in address['owner2'].lower() or
+                search_query in address['address'].lower() or
+                search_query in address['city_zip'].lower() or
+                search_query in address['property_type'].lower()):
+                filtered_addresses.append(address)
+        return filtered_addresses
+    
+    # Return all addresses (no limit)
+    return addresses
 
 # Real census data
 def get_census_data():
@@ -327,6 +409,24 @@ if st.session_state.current_tab == "Home":
             # Display number of addresses found
             st.info(f"Found {len(st.session_state.addresses)} addresses in this precinct")
             
+            # Search functionality
+            search_query = st.text_input("Search addresses by name, street, or number:", value=st.session_state.search_query)
+            if search_query != st.session_state.search_query:
+                st.session_state.search_query = search_query
+                if search_query:
+                    st.session_state.addresses = get_real_addresses(precinct_id, search_query)
+                else:
+                    st.session_state.addresses = get_real_addresses(precinct_id)
+                st.rerun()
+            
+            # Highlight if Ariel's address is found
+            ariel_found = False
+            for address in st.session_state.addresses:
+                if "FERNANDEZ, ARIEL" in address.get('owner1', ''):
+                    ariel_found = True
+                    st.success("✅ Ariel Fernandez's address found in this precinct!")
+                    break
+            
             # Map view of addresses
             if st.session_state.addresses:
                 st.subheader("Map View")
@@ -374,13 +474,36 @@ if st.session_state.current_tab == "Home":
             if property_filter != "All":
                 filtered_addresses = [a for a in filtered_addresses if a.get('property_type', 'Unknown') == property_filter]
             
+            # Pagination for addresses
+            addresses_per_page = 10
+            total_pages = (len(filtered_addresses) + addresses_per_page - 1) // addresses_per_page
+            
+            if total_pages > 1:
+                col1, col2, col3 = st.columns([1, 2, 1])
+                with col2:
+                    page = st.slider("Page", 1, max(1, total_pages), 1)
+                    start_idx = (page - 1) * addresses_per_page
+                    end_idx = min(start_idx + addresses_per_page, len(filtered_addresses))
+                    st.write(f"Showing addresses {start_idx + 1}-{end_idx} of {len(filtered_addresses)}")
+            else:
+                page = 1
+                start_idx = 0
+                end_idx = len(filtered_addresses)
+            
             # Address list
-            for i, address in enumerate(filtered_addresses):
+            for i, address in enumerate(filtered_addresses[start_idx:end_idx]):
                 address_id = address.get('id', i)
                 visited = address_id in st.session_state.visited_addresses
                 
+                # Highlight Ariel's address
+                is_ariel = "FERNANDEZ, ARIEL" in address.get('owner1', '')
+                
                 # Create a card-like container for each address
                 with st.container():
+                    if is_ariel:
+                        st.markdown("---")
+                        st.markdown("### 🌟 YOUR ADDRESS 🌟")
+                    
                     col1, col2 = st.columns([3, 1])
                     
                     with col1:
@@ -388,9 +511,14 @@ if st.session_state.current_tab == "Home":
                         address_text = f"{address.get('address', '')}, {address.get('city_zip', '')}"
                         property_info = f"{address.get('property_type', 'Unknown')} • {'Owner Occupied' if address.get('owner_occupied') == 'Yes' else 'Not Owner Occupied'}"
                         
-                        st.markdown(f"**{owner}**")
-                        st.text(address_text)
-                        st.text(property_info)
+                        if is_ariel:
+                            st.markdown(f"**👤 {owner}**")
+                            st.markdown(f"**🏠 {address_text}**")
+                            st.markdown(f"**🏘️ {property_info}**")
+                        else:
+                            st.markdown(f"**{owner}**")
+                            st.text(address_text)
+                            st.text(property_info)
                     
                     with col2:
                         if not visited:
@@ -465,9 +593,27 @@ if st.session_state.current_tab == "Home":
                                     else:
                                         st.error("Please enter some notes before saving.")
                     
-                    st.markdown("---")
+                    if is_ariel:
+                        st.markdown("---")
+                    else:
+                        st.markdown("---")
+            
+            # Pagination controls
+            if total_pages > 1:
+                col1, col2, col3 = st.columns([1, 2, 1])
+                with col2:
+                    st.write(f"Page {page} of {total_pages}")
+                    prev, next = st.columns(2)
+                    if prev.button("Previous Page", disabled=(page == 1)):
+                        new_page = max(1, page - 1)
+                        st.experimental_set_query_params(page=new_page)
+                        st.rerun()
+                    if next.button("Next Page", disabled=(page == total_pages)):
+                        new_page = min(total_pages, page + 1)
+                        st.experimental_set_query_params(page=new_page)
+                        st.rerun()
         else:
-            st.warning("No addresses found for this precinct. Please try another precinct.")
+            st.warning("No addresses found for this precinct. Please try another precinct or adjust your search criteria.")
     else:
         st.info("Please select a precinct to begin canvassing")
 
