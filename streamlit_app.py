@@ -4,6 +4,7 @@ import json
 import os
 import re
 import requests
+from urllib.parse import quote
 
 # Set page configuration
 st.set_page_config(
@@ -107,9 +108,12 @@ def generate_sample_addresses():
 @st.cache_data
 def load_addresses_from_github():
     try:
-        # URL to the raw addresses.json file in your GitHub repository
-        # Convert from regular GitHub URL to raw content URL
-        github_url = "https://raw.githubusercontent.com/ARCHITECTARIEL/district6-canvassing-app-test/main/addresses.json"
+        # URL to the specific file in your GitHub repository with proper URL encoding for special characters
+        filename = "Advanced Search 4-11-2025 (1).json"
+        encoded_filename = quote(filename)
+        github_url = f"https://raw.githubusercontent.com/ARCHITECTARIEL/district6-canvassing-app-test/main/{encoded_filename}"
+        
+        st.sidebar.info(f"Attempting to load: {github_url}")
         
         # Fetch the file from GitHub
         response = requests.get(github_url)
@@ -117,14 +121,43 @@ def load_addresses_from_github():
         # Check if the request was successful
         if response.status_code == 200:
             # Parse the JSON data
-            address_data = response.json()
-            st.sidebar.success(f"Successfully loaded {len(address_data)} addresses from GitHub")
-            
-            # Process the address data
-            process_address_data(address_data)
-            return address_data
+            try:
+                address_data = response.json()
+                st.sidebar.success(f"Successfully loaded {len(address_data)} addresses from GitHub")
+                
+                # Process the address data
+                process_address_data(address_data)
+                return address_data
+            except json.JSONDecodeError as e:
+                st.sidebar.error(f"Error parsing JSON: {str(e)}")
+                # Try to show the first part of the response to help debug
+                st.sidebar.error(f"First 100 characters of response: {response.text[:100]}")
+                return generate_sample_addresses()
         else:
             st.sidebar.error(f"Failed to load addresses from GitHub: HTTP {response.status_code}")
+            
+            # Try alternative filenames
+            alternative_filenames = [
+                "addresses.json",
+                "Advanced_Search_4-11-2025_(1).json",
+                "Advanced_Search_4-11-2025_1.json"
+            ]
+            
+            for alt_filename in alternative_filenames:
+                encoded_alt_filename = quote(alt_filename)
+                alt_url = f"https://raw.githubusercontent.com/ARCHITECTARIEL/district6-canvassing-app-test/main/{encoded_alt_filename}"
+                st.sidebar.info(f"Trying alternative: {alt_url}")
+                
+                alt_response = requests.get(alt_url)
+                if alt_response.status_code == 200:
+                    try:
+                        address_data = alt_response.json()
+                        st.sidebar.success(f"Successfully loaded {len(address_data)} addresses from alternative file")
+                        process_address_data(address_data)
+                        return address_data
+                    except json.JSONDecodeError:
+                        continue
+            
             return generate_sample_addresses()
     except Exception as e:
         st.sidebar.error(f"Error loading addresses from GitHub: {str(e)}")
