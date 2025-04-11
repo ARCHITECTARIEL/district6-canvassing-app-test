@@ -3,6 +3,7 @@ import pandas as pd
 import json
 import os
 import re
+import requests
 
 # Set page configuration
 st.set_page_config(
@@ -27,16 +28,12 @@ if 'search_query' not in st.session_state:
     st.session_state.search_query = ""
 if 'precinct_addresses' not in st.session_state:
     st.session_state.precinct_addresses = {}
+if 'data_loaded' not in st.session_state:
+    st.session_state.data_loaded = False
 
 # Sidebar for navigation
 st.sidebar.title("District 6 Canvassing")
 st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Map_icon.svg/1200px-Map_icon.svg.png", width=100)
-
-# Add a file uploader for the JSON data - moved to top of sidebar for visibility
-st.sidebar.markdown("---")
-st.sidebar.subheader("Upload Address Data")
-st.sidebar.info("Please upload your addresses.json file here:")
-uploaded_file = st.sidebar.file_uploader("Upload JSON file", type="json")
 
 # Real District 6 precinct data
 def get_district6_precincts():
@@ -58,7 +55,7 @@ def get_district6_precincts():
 
 # Generate sample addresses as fallback
 def generate_sample_addresses():
-    st.warning("Using generated sample addresses since no data file was uploaded.")
+    st.warning("Using generated sample addresses as fallback.")
     sample_data = []
     
     # Add Ariel's address to the sample data
@@ -106,99 +103,117 @@ def generate_sample_addresses():
     
     return sample_data
 
-# Process uploaded data or use sample data
-if uploaded_file is not None:
+# Load addresses directly from GitHub repository
+@st.cache_data
+def load_addresses_from_github():
     try:
-        # Save the uploaded file
-        st.sidebar.success("File uploaded successfully!")
-        st.session_state.address_data = json.load(uploaded_file)
-        st.sidebar.info(f"Loaded {len(st.session_state.address_data)} addresses")
+        # URL to the raw addresses.json file in your GitHub repository
+        github_url = "https://raw.githubusercontent.com/ARCHITECTARIEL/district6-canvassing-app-enhanced/main/addresses.json"
         
-        # Add precinct information if not present
-        for address in st.session_state.address_data:
-            # Check if address already has precinct info
-            if 'PRECINCT' not in address:
-                # Assign precinct based on ZIP code
-                zip_code = str(address.get('STR_ZIP', ''))
-                
-                # Simple assignment logic - in a real app, this would use geospatial data
-                # For now, we'll assign based on a simple pattern
-                if zip_code == '33705':
-                    # Distribute 33705 addresses across precincts
-                    street_num = int(address.get('STR_NUM', 0))
-                    if street_num < 200:
-                        address['PRECINCT'] = '106'
-                    elif street_num < 400:
-                        address['PRECINCT'] = '108'
-                    elif street_num < 600:
-                        address['PRECINCT'] = '109'
-                    elif street_num < 800:
-                        address['PRECINCT'] = '116'
-                    else:
-                        address['PRECINCT'] = '117'
-                elif zip_code == '33701':
-                    # Distribute 33701 addresses across precincts
-                    street_num = int(address.get('STR_NUM', 0))
-                    if street_num < 200:
-                        address['PRECINCT'] = '118'
-                    elif street_num < 400:
-                        address['PRECINCT'] = '119'
-                    elif street_num < 600:
-                        address['PRECINCT'] = '121'
-                    elif street_num < 800:
-                        address['PRECINCT'] = '122'
-                    else:
-                        address['PRECINCT'] = '123'
-                else:
-                    # Default precinct for other ZIP codes
-                    address['PRECINCT'] = '130'
-                
-                # Special case for Ariel's address
-                if (address.get('STR_NUM') == 315 and 
-                    'TAYLOR' in str(address.get('STR_NAME', '')) and 
-                    address.get('STR_ZIP') == '33705'):
+        # Fetch the file from GitHub
+        response = requests.get(github_url)
+        
+        # Check if the request was successful
+        if response.status_code == 200:
+            # Parse the JSON data
+            address_data = response.json()
+            st.sidebar.success(f"Successfully loaded {len(address_data)} addresses from GitHub")
+            
+            # Process the address data
+            process_address_data(address_data)
+            return address_data
+        else:
+            st.sidebar.error(f"Failed to load addresses from GitHub: HTTP {response.status_code}")
+            return generate_sample_addresses()
+    except Exception as e:
+        st.sidebar.error(f"Error loading addresses from GitHub: {str(e)}")
+        return generate_sample_addresses()
+
+# Process address data
+def process_address_data(address_data):
+    # Add precinct information if not present
+    for address in address_data:
+        # Check if address already has precinct info
+        if 'PRECINCT' not in address:
+            # Assign precinct based on ZIP code
+            zip_code = str(address.get('STR_ZIP', ''))
+            
+            # Simple assignment logic - in a real app, this would use geospatial data
+            # For now, we'll assign based on a simple pattern
+            if zip_code == '33705':
+                # Distribute 33705 addresses across precincts
+                street_num = int(address.get('STR_NUM', 0))
+                if street_num < 200:
                     address['PRECINCT'] = '106'
-                    address['OWNER1'] = 'FERNANDEZ, ARIEL'
-        
-        # Make sure Ariel's address is included
-        ariel_exists = False
-        for address in st.session_state.address_data:
+                elif street_num < 400:
+                    address['PRECINCT'] = '108'
+                elif street_num < 600:
+                    address['PRECINCT'] = '109'
+                elif street_num < 800:
+                    address['PRECINCT'] = '116'
+                else:
+                    address['PRECINCT'] = '117'
+            elif zip_code == '33701':
+                # Distribute 33701 addresses across precincts
+                street_num = int(address.get('STR_NUM', 0))
+                if street_num < 200:
+                    address['PRECINCT'] = '118'
+                elif street_num < 400:
+                    address['PRECINCT'] = '119'
+                elif street_num < 600:
+                    address['PRECINCT'] = '121'
+                elif street_num < 800:
+                    address['PRECINCT'] = '122'
+                else:
+                    address['PRECINCT'] = '123'
+            else:
+                # Default precinct for other ZIP codes
+                address['PRECINCT'] = '130'
+            
+            # Special case for Ariel's address
             if (address.get('STR_NUM') == 315 and 
                 'TAYLOR' in str(address.get('STR_NAME', '')) and 
                 address.get('STR_ZIP') == '33705'):
-                ariel_exists = True
-                break
-        
-        # Add Ariel's address if not found
-        if not ariel_exists:
-            ariel_address = {
-                "PARCEL_NUMBER": "ARIEL-RESIDENCE",
-                "OWNER1": "FERNANDEZ, ARIEL",
-                "OWNER2": "",
-                "SITE_ADDRESS": "315 TAYLOR AVE S",
-                "SITE_CITYZIP": "ST PETERSBURG, FL 33705",
-                "SUBDIVISION": "DISTRICT 6",
-                "MAILING_ADDRESS_1": "315 TAYLOR AVE S",
-                "MAILING_CITY": "ST PETERSBURG",
-                "MAILING_STATE": "FL",
-                "MAILING_ZIP": "33705",
-                "PROPERTY_USE": "0110 Single Family Home",
-                "HX_YN": "Yes",
-                "STR_NUM": 315,
-                "STR_NAME": "TAYLOR",
-                "STR_UNIT": "",
-                "STR_ZIP": "33705",
-                "PRECINCT": "106"  # Explicitly assign precinct
-            }
-            st.session_state.address_data.append(ariel_address)
-            st.sidebar.success("Added Ariel Fernandez's address to the dataset")
-    except Exception as e:
-        st.sidebar.error(f"Error loading file: {str(e)}")
-        st.session_state.address_data = generate_sample_addresses()
-else:
-    # Use sample data if no file is uploaded
-    if st.session_state.address_data is None:
-        st.session_state.address_data = generate_sample_addresses()
+                address['PRECINCT'] = '106'
+                address['OWNER1'] = 'FERNANDEZ, ARIEL'
+    
+    # Make sure Ariel's address is included
+    ariel_exists = False
+    for address in address_data:
+        if (address.get('STR_NUM') == 315 and 
+            'TAYLOR' in str(address.get('STR_NAME', '')) and 
+            address.get('STR_ZIP') == '33705'):
+            ariel_exists = True
+            break
+    
+    # Add Ariel's address if not found
+    if not ariel_exists:
+        ariel_address = {
+            "PARCEL_NUMBER": "ARIEL-RESIDENCE",
+            "OWNER1": "FERNANDEZ, ARIEL",
+            "OWNER2": "",
+            "SITE_ADDRESS": "315 TAYLOR AVE S",
+            "SITE_CITYZIP": "ST PETERSBURG, FL 33705",
+            "SUBDIVISION": "DISTRICT 6",
+            "MAILING_ADDRESS_1": "315 TAYLOR AVE S",
+            "MAILING_CITY": "ST PETERSBURG",
+            "MAILING_STATE": "FL",
+            "MAILING_ZIP": "33705",
+            "PROPERTY_USE": "0110 Single Family Home",
+            "HX_YN": "Yes",
+            "STR_NUM": 315,
+            "STR_NAME": "TAYLOR",
+            "STR_UNIT": "",
+            "STR_ZIP": "33705",
+            "PRECINCT": "106"  # Explicitly assign precinct
+        }
+        address_data.append(ariel_address)
+        st.sidebar.success("Added Ariel Fernandez's address to the dataset")
+
+# Load address data when the app starts
+if not st.session_state.data_loaded:
+    st.session_state.address_data = load_addresses_from_github()
+    st.session_state.data_loaded = True
 
 # Organize addresses by precinct
 def organize_addresses_by_precinct():
