@@ -235,42 +235,23 @@ def fix_json_format(content):
         if fixed_content[0] != '[':
             fixed_content = '[' + fixed_content[fixed_content.find('{'): fixed_content.rfind('}')+1] + ']'
         
-import json
-import streamlit as st
-
-@st.cache_data
-def load_addresses():
-    file_paths = [
-        r"C:\Users\Ariel\Advanced Search 4-11-2025 (1).json",
-        r"C:\Users\Ariel\rrfgiqn2.json",
-        r"C:\Users\Ariel\Voting Precincts 2022.geojson"
-    ]
-    
-    data = []
-    for file_path in file_paths:
-        st.write(f"Attempting to load: {file_path}")  # Debug output
+        # Try to parse the fixed content
         try:
-            with open(file_path, 'r') as f:
-                file_data = json.load(f)
-                data.append(file_data)
-        except FileNotFoundError:
-            st.warning(f"Could not load {file_path}: File not found")
+            json.loads(fixed_content)
+            return fixed_content
         except json.JSONDecodeError:
-            st.warning(f"Could not parse JSON in file: {file_path}")
-    
-    return data
-
-# Call the function
-addresses = load_addresses()
+            # If still invalid, return None
+            return None
 
 # Load addresses from local file or GitHub
 @st.cache_data
 def load_addresses():
     # File paths to try in order
     file_paths = [
-        r"C:\Users\Ariel\Advanced Search 4-11-2025 (1).json",
-        r"C:\Users\Ariel\rrfgiqn2.json",
-        r"C:\Users\Ariel\Voting Precincts 2022.geojson"
+        '/home/ubuntu/fixed_addresses.json',  # Our fixed version
+        '/home/ubuntu/addresses.json',
+        '/home/ubuntu/upload/addresses.json',
+        '/home/ubuntu/upload/Advanced Search 4-11-2025 (1).json'
     ]
     
     # Try local files first
